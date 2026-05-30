@@ -1,0 +1,3235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>V.A.S.T. - Voice-Assisted Scheduling & Tasks</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --bg-color: #F5F5F0; /* Soft warm-neutral background matching your design */
+            --header-bg: #1A4D4A; /* Brand deep slate-teal */
+            --text-main: #1A3038;
+            --text-muted: #617D8A;
+            --card-shadow: 0 12px 36px rgba(26, 77, 74, 0.06);
+            --transition: all 0.25s ease;
+
+            /* Desaturated Pastel Color Palette from Figma assets */
+            --pastel-yellow: #F0E4B1; /* Progress/Pending */
+            --pastel-green: #A3D9C9;  /* Completed */
+            --pastel-orange: #F5CDA7; /* Priority */
+            --pastel-red: #E5A9A9;    /* Overdue/Urgent */
+            
+            --accent-teal: #338A85;
+            --accent-hover: #256864;
+            --save-btn: #339999;
+            --card-bg: #FFFFFF;
+            --input-border: #D1D5DB;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow-x: hidden;
+            transition: var(--transition);
+        }
+
+        /* --- AUTH SCREEN PAGE WRAPPER --- */
+        #auth-page-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            width: 100vw;
+            padding: 20px;
+            background: radial-gradient(circle at top right, #E0F2F1, var(--bg-color));
+            box-sizing: border-box;
+        }
+
+        .auth-container {
+            background: white;
+            border-radius: 24px;
+            padding: 40px;
+            width: 100%;
+            max-width: 440px;
+            box-shadow: 0 16px 40px rgba(26, 77, 74, 0.1);
+            text-align: center;
+            border: 1px solid rgba(26, 77, 74, 0.05);
+            animation: slideUp 0.4s ease;
+        }
+
+        .auth-logo {
+            margin-bottom: 24px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .auth-logo svg {
+            width: 80px;
+            height: 80px;
+        }
+
+        .auth-logo h1 {
+            font-size: 28px;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+            color: var(--header-bg);
+        }
+
+        .auth-logo p {
+            font-size: 13px;
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+
+        .auth-form-group {
+            margin-bottom: 16px;
+            text-align: left;
+        }
+
+        .auth-form-group label {
+            display: block;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-muted);
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .auth-input {
+            width: 100%;
+            padding: 14px 16px;
+            border: 1.5px solid var(--input-border);
+            border-radius: 12px;
+            font-size: 14px;
+            outline: none;
+            background-color: #FAFAFA;
+            color: var(--text-main);
+            transition: var(--transition);
+        }
+
+        .auth-input:focus {
+            border-color: var(--accent-teal);
+            background-color: white;
+            box-shadow: 0 0 0 3px rgba(51, 138, 133, 0.15);
+        }
+
+        .auth-btn {
+            width: 100%;
+            background-color: var(--accent-teal);
+            color: white;
+            border: none;
+            padding: 14px;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+            margin-top: 10px;
+        }
+
+        .auth-btn:hover {
+            background-color: var(--accent-hover);
+            transform: translateY(-1px);
+        }
+
+        .auth-toggle {
+            margin-top: 20px;
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+
+        .auth-toggle a {
+            color: var(--accent-teal);
+            text-decoration: none;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .auth-toggle a:hover {
+            text-decoration: underline;
+        }
+
+        /* --- APP CONTENT WRAPPER --- */
+        #app-content-wrapper {
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+            width: 100%;
+            padding-bottom: 110px; /* Space for bottom navbar */
+            box-sizing: border-box;
+        }
+
+        /* --- HEADER REGION --- */
+        header {
+            background-color: var(--header-bg);
+            color: white;
+            padding: 16px 40px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+        }
+
+        header .logo-group {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            cursor: pointer;
+        }
+
+        header h1 {
+            font-size: 22px;
+            font-weight: 600;
+            letter-spacing: -0.5px;
+        }
+
+        header .brand-subtitle {
+            font-size: 11px;
+            opacity: 0.7;
+            font-weight: 400;
+            letter-spacing: 0.5px;
+        }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            position: relative;
+        }
+
+        .icon-btn {
+            background: none;
+            border: none;
+            color: white;
+            cursor: pointer;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            transition: var(--transition);
+            position: relative;
+        }
+
+        .icon-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+            transform: scale(1.05);
+        }
+
+        .icon-btn.active-badge {
+            background: var(--accent-teal);
+        }
+
+        .icon-btn .badge-dot {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            width: 8px;
+            height: 8px;
+            background-color: #E5A9A9;
+            border-radius: 50%;
+            border: 1.5px solid var(--header-bg);
+            display: none; /* Hidden by default when empty */
+        }
+
+        .add-manual-btn {
+            font-size: 26px;
+            font-weight: 300;
+        }
+
+        /* --- DROPDOWN/POPOVER MENUS --- */
+        .header-dropdown {
+            position: absolute;
+            top: 55px;
+            right: 0;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 12px 36px rgba(0,0,0,0.15);
+            width: 320px;
+            display: none;
+            z-index: 200;
+            border: 1px solid #EAEAEA;
+            padding: 16px;
+            animation: slideUp 0.25s ease;
+        }
+
+        .header-dropdown.open {
+            display: block;
+        }
+
+        .dropdown-title {
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--text-main);
+            margin-bottom: 12px;
+            border-bottom: 1px solid #F1F5F9;
+            padding-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .clear-notif-btn {
+            font-size: 11px;
+            color: var(--accent-teal);
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-weight: 600;
+        }
+
+        .notif-list {
+            max-height: 280px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .notif-item {
+            padding: 10px;
+            border-radius: 10px;
+            background-color: #F8F9FA;
+            border-left: 4px solid var(--accent-teal);
+            transition: var(--transition);
+        }
+
+        .notif-item.late {
+            border-left-color: var(--pastel-red);
+        }
+
+        .notif-item.complete {
+            border-left-color: var(--pastel-green);
+        }
+
+        .notif-item:hover {
+            background-color: #F1F3F5;
+        }
+
+        .notif-title {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-main);
+            margin-bottom: 2px;
+        }
+
+        .notif-desc {
+            font-size: 11px;
+            color: var(--text-muted);
+            margin-bottom: 4px;
+        }
+
+        .notif-time {
+            font-size: 10px;
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+
+        /* Profile popover layout matching Profile_Popup.png */
+        .profile-popover-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding-bottom: 12px;
+            margin-bottom: 12px;
+            border-bottom: 1px solid #F1F5F9;
+        }
+
+        .profile-popover-avatar {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            background-color: #E2E8F0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--accent-teal);
+            background-size: cover;
+            background-position: center;
+        }
+
+        .profile-popover-meta h4 {
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--text-main);
+        }
+
+        .profile-popover-meta p {
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+
+        .profile-menu-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px;
+            border-radius: 10px;
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--text-main);
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .profile-menu-item:hover {
+            background-color: #F1F5F9;
+        }
+
+        .profile-menu-item svg {
+            color: var(--text-muted);
+        }
+
+        .profile-menu-item.logout {
+            color: #B91C1C;
+        }
+
+        .profile-menu-item.logout svg {
+            color: #B91C1C;
+        }
+
+        /* --- CONNECTIVITY SHIELD BANNER --- */
+        .network-banner {
+            background-color: #E0F2F1;
+            color: #004D40;
+            padding: 6px 20px;
+            font-size: 11px;
+            font-weight: 600;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 8px;
+            border-bottom: 1px solid rgba(0, 77, 64, 0.1);
+        }
+
+        .network-banner.offline {
+            background-color: #FFEBEE;
+            color: #C62828;
+            border-bottom-color: rgba(198, 40, 40, 0.1);
+        }
+
+        .network-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background-color: #009688;
+        }
+
+        .network-banner.offline .network-dot {
+            background-color: #E53935;
+        }
+
+        /* --- MAIN LAYOUT PANELS --- */
+        main {
+            max-width: 1200px;
+            width: 100%;
+            margin: 0 auto;
+            padding: 30px 20px;
+            flex-grow: 1;
+        }
+
+        .view-panel {
+            display: none;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .view-panel.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(4px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        h2 {
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 16px;
+            color: var(--text-main);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        /* --- DASHBOARD VIEW PANELS --- */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+            margin-bottom: 30px;
+        }
+
+        @media (max-width: 768px) {
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        .stat-card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: var(--card-shadow);
+            border: 1px solid rgba(0,0,0,0.02);
+            transition: var(--transition);
+            cursor: pointer;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 16px 36px rgba(0,0,0,0.08);
+            border: 1px solid rgba(26, 77, 74, 0.15);
+        }
+
+        .stat-card.pendings { background-color: var(--pastel-yellow); }
+        .stat-card.completed { background-color: var(--pastel-green); }
+        .stat-card.priority { background-color: var(--pastel-orange); }
+        .stat-card.overdue { background-color: var(--pastel-red); }
+
+        .stat-info .stat-number {
+            font-size: 30px;
+            font-weight: 700;
+            line-height: 1.1;
+        }
+
+        .stat-info .stat-label {
+            font-size: 13px;
+            font-weight: 500;
+            margin-top: 4px;
+            color: rgba(0, 0, 0, 0.6);
+        }
+
+        .stat-icon svg {
+            width: 24px;
+            height: 24px;
+            stroke: currentColor;
+            stroke-width: 2;
+            fill: none;
+        }
+
+        /* --- TASKS CONTAINER LAYOUT --- */
+        .tasks-layout {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+        }
+
+        @media (max-width: 768px) {
+            .tasks-layout {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .tasks-container {
+            background: white;
+            border-radius: 24px;
+            padding: 24px;
+            box-shadow: var(--card-shadow);
+            border: 1px solid #EAEAEA;
+            min-height: 300px;
+            max-height: 450px;
+            overflow-y: auto;
+        }
+
+        .task-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .task-item {
+            background: #F8F9FA;
+            border: 1px solid #EEF0F2;
+            border-radius: 12px;
+            padding: 14px 18px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.01);
+            transition: var(--transition);
+        }
+
+        .task-item:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.04);
+            background: white;
+            border-color: var(--accent-teal);
+        }
+
+        .task-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-grow: 1;
+        }
+
+        .task-checkbox {
+            width: 18px;
+            height: 18px;
+            accent-color: var(--accent-teal);
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .task-title {
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--text-main);
+            transition: var(--transition);
+        }
+
+        .task-item.is-completed .task-title {
+            text-decoration: line-through;
+            color: var(--text-muted);
+            opacity: 0.6;
+        }
+
+        .task-right {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .task-time, .task-date {
+            font-size: 12px;
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+
+        .priority-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
+        .priority-dot.high { background-color: var(--pastel-red); }
+        .priority-dot.medium { background-color: var(--pastel-orange); }
+        .priority-dot.low { background-color: var(--pastel-green); }
+
+        .delete-task-btn, .edit-task-btn {
+            width: 26px;
+            height: 26px;
+            border: none;
+            border-radius: 50%;
+            background: transparent;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: var(--transition);
+        }
+
+        .edit-task-btn {
+            font-size: 13px;
+        }
+
+        .delete-task-btn:hover {
+            background: #FEE2E2;
+            color: #B91C1C;
+        }
+
+        .edit-task-btn:hover {
+            background: #E0F2F1;
+            color: var(--accent-teal);
+        }
+
+        .no-tasks {
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 13px;
+            padding: 40px 0;
+        }
+
+        /* --- CALENDAR INTERFACE VIEW --- */
+        .calendar-grid-layout {
+            display: grid;
+            grid-template-columns: 1.2fr 0.8fr;
+            gap: 24px;
+            background: white;
+            padding: 24px;
+            border-radius: 24px;
+            box-shadow: var(--card-shadow);
+            border: 1px solid #EAEAEA;
+        }
+
+        @media (max-width: 900px) {
+            .calendar-grid-layout {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .calendar-left {
+            border-right: 1px solid #F1F5F9;
+            padding-right: 20px;
+        }
+
+        @media (max-width: 900px) {
+            .calendar-left {
+                border-right: none;
+                padding-right: 0;
+                margin-bottom: 20px;
+                border-bottom: 1px solid #F1F5F9;
+                padding-bottom: 24px;
+            }
+        }
+
+        .calendar-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .calendar-month-nav {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .calendar-month-label {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--text-main);
+        }
+
+        .cal-arrow {
+            background: none;
+            border: none;
+            font-size: 18px;
+            cursor: pointer;
+            color: var(--text-main);
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            transition: var(--transition);
+        }
+
+        .cal-arrow:hover {
+            background-color: #F1F5F9;
+        }
+
+        .days-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 8px;
+            text-align: center;
+        }
+
+        .weekday-label {
+            font-size: 11px;
+            font-weight: 600;
+            color: white;
+            background: var(--accent-teal);
+            padding: 8px 4px;
+            border-radius: 8px;
+        }
+
+        .cal-day {
+            background: #E0F2F1;
+            padding: 14px 4px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+            min-height: 48px;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-main);
+            border: 2px solid transparent;
+        }
+
+        .cal-day:hover:not(.empty-day) {
+            background: #B2DFDB;
+        }
+
+        .cal-day.active-day {
+            background: var(--accent-teal);
+            color: white;
+        }
+
+        .cal-day.empty-day {
+            background: transparent;
+            cursor: default;
+        }
+
+        .cal-day.has-tasks::after {
+            content: '';
+            position: absolute;
+            bottom: 4px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 5px;
+            height: 5px;
+            background-color: var(--text-main);
+            border-radius: 50%;
+        }
+
+        .cal-day.active-day.has-tasks::after {
+            background-color: white;
+        }
+
+        /* --- HIGH FIDELITY SETTINGS MODULES --- */
+        .settings-layout {
+            display: grid;
+            grid-template-columns: 280px 1fr;
+            gap: 24px;
+            align-items: start;
+        }
+
+        @media (max-width: 768px) {
+            .settings-layout {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .settings-sidebar {
+            background: white;
+            border-radius: 24px;
+            padding: 30px 24px;
+            box-shadow: var(--card-shadow);
+            border: 1px solid #EAEAEA;
+            text-align: center;
+        }
+
+        .settings-sidebar-profile {
+            margin-bottom: 24px;
+        }
+
+        .settings-sidebar-avatar {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background-color: #E2E8F0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+            font-weight: 600;
+            color: var(--accent-teal);
+            margin: 0 auto 12px;
+            background-size: cover;
+            background-position: center;
+        }
+
+        .settings-sidebar-name {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--text-main);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+        }
+
+        .settings-nav {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            text-align: left;
+        }
+
+        .settings-nav-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 14px 18px;
+            border-radius: 12px;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-muted);
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .settings-nav-item:hover {
+            background-color: #F8F9FA;
+            color: var(--text-main);
+        }
+
+        .settings-nav-item.active {
+            background-color: #D1ECE7; /* Premium soft desaturated teal background matching Figma */
+            color: #1A4D4A;
+        }
+
+        .settings-content {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .settings-content-pane {
+            display: none;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .settings-content-pane.active {
+            display: block;
+        }
+
+        .settings-card {
+            background: white;
+            border-radius: 24px;
+            padding: 24px;
+            box-shadow: var(--card-shadow);
+            border: 1px solid #EAEAEA;
+            margin-bottom: 20px;
+        }
+
+        .settings-card h3 {
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--header-bg);
+            margin-bottom: 16px;
+            border-bottom: 1.5px solid #F1F5F9;
+            padding-bottom: 10px;
+        }
+
+        .profile-pic-box {
+            border: 2px dashed #E2E8F0;
+            background-color: #F8F9FA;
+            border-radius: 16px;
+            height: 120px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            margin-bottom: 16px;
+            transition: var(--transition);
+            background-size: contain;
+            background-position: center;
+            background-repeat: no-repeat;
+        }
+
+        .profile-pic-box:hover {
+            border-color: var(--accent-teal);
+        }
+
+        /* --- POPUP SETTINGS LISTS --- */
+        .popup-list {
+            max-height: 220px;
+            overflow-y: auto;
+            margin-top: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .popup-list-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 8px;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .popup-list-item:hover {
+            background-color: #F8F9FA;
+        }
+
+        .popup-radio-dot {
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            border: 2px solid var(--text-muted);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: var(--transition);
+        }
+
+        .popup-list-item.selected .popup-radio-dot {
+            border-color: var(--accent-teal);
+            background-color: var(--accent-teal);
+        }
+
+        .popup-radio-dot::after {
+            content: '';
+            width: 6px;
+            height: 6px;
+            background-color: white;
+            border-radius: 50%;
+            display: none;
+        }
+
+        .popup-list-item.selected .popup-radio-dot::after {
+            display: block;
+        }
+
+        .avatar-presets-grid {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 10px;
+            margin-top: 16px;
+        }
+
+        .avatar-preset-btn {
+            width: 100%;
+            padding-bottom: 100%;
+            height: 0;
+            border-radius: 50%;
+            cursor: pointer;
+            border: 3px solid transparent;
+            transition: var(--transition);
+        }
+
+        .avatar-preset-btn:hover {
+            transform: scale(1.1);
+        }
+
+        .avatar-preset-btn.selected {
+            border-color: var(--header-bg);
+        }
+
+        /* --- POPUP MODAL --- */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.4);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            backdrop-filter: blur(2px);
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .modal-card {
+            background: white;
+            border-radius: 24px;
+            width: 100%;
+            max-width: 480px;
+            padding: 32px;
+            box-shadow: 0 16px 40px rgba(0,0,0,0.18);
+            position: relative;
+            animation: slideUp 0.3s ease;
+        }
+
+        @keyframes slideUp {
+            from { transform: translateY(20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        .modal-close {
+            position: absolute;
+            top: 24px;
+            right: 24px;
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: var(--text-muted);
+        }
+
+        .modal-card h3 {
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 24px;
+            color: var(--text-main);
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            background: #F8F9FA;
+            border: 1.5px solid #E2E8F0;
+            border-radius: 12px;
+            padding: 12px 16px;
+        }
+
+        .form-group svg {
+            width: 20px;
+            height: 20px;
+            color: var(--text-muted);
+            margin-right: 12px;
+        }
+
+        .form-group input, .form-group select {
+            border: none;
+            outline: none;
+            width: 100%;
+            font-size: 14px;
+            color: var(--text-main);
+            background: transparent;
+        }
+
+        .save-btn {
+            width: 100%;
+            background-color: var(--save-btn);
+            color: white;
+            border: none;
+            padding: 14px;
+            border-radius: 12px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+            margin-top: 10px;
+        }
+
+        .save-btn:hover {
+            opacity: 0.9;
+            transform: translateY(-1px);
+        }
+
+        /* --- NOTCHED BOTTOM NAVIGATION & MIC --- */
+        .bottom-nav-container {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 80px;
+            background: transparent;
+            pointer-events: none;
+            display: flex;
+            justify-content: center;
+            z-index: 900;
+        }
+
+        .nav-bar-bg {
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            height: 70px;
+            background: #FFFFFF;
+            box-shadow: 0 -4px 20px rgba(0,0,0,0.03);
+            pointer-events: auto;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            padding: 0 15%;
+            border-top: 1px solid #ECEFF1;
+        }
+
+        .mic-button-wrapper {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            pointer-events: auto;
+            z-index: 910;
+        }
+
+        .mic-btn {
+            width: 70px;
+            height: 70px;
+            border-radius: 50%;
+            background-color: var(--accent-teal);
+            border: 6px solid var(--bg-color);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 4px 14px rgba(51, 138, 133, 0.4);
+            transition: var(--transition);
+        }
+
+        .mic-btn:hover {
+            transform: scale(1.05);
+            background-color: var(--accent-hover);
+        }
+
+        .mic-btn.listening {
+            background-color: var(--pastel-red);
+            animation: pulse 1.5s infinite;
+            box-shadow: 0 4px 14px rgba(229, 115, 115, 0.4);
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.08); }
+            100% { transform: scale(1); }
+        }
+
+        .nav-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            color: var(--text-muted);
+            text-decoration: none;
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+            gap: 4px;
+            transition: var(--transition);
+        }
+
+        .nav-item.active {
+            color: var(--accent-teal);
+        }
+
+        .nav-item svg {
+            width: 22px;
+            height: 22px;
+            transition: var(--transition);
+        }
+
+        .nav-item:hover {
+            color: var(--accent-teal);
+        }
+
+        /* --- VOICE STATUS TOAST --- */
+        .voice-toast {
+            position: fixed;
+            bottom: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(26, 77, 74, 0.95);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 20px;
+            font-size: 13px;
+            display: none;
+            z-index: 1000;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+            border: 1px solid rgba(255,255,255,0.1);
+            animation: slideUp 0.2s ease;
+        }
+
+        /* --- SYSTEM TOAST NOTIFICATIONS --- */
+        .system-alert {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background-color: #338A85;
+            color: white;
+            padding: 14px 20px;
+            border-radius: 12px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+            z-index: 1100;
+            font-size: 13px;
+            font-weight: 500;
+            display: none;
+            align-items: center;
+            gap: 10px;
+            animation: slideInRight 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        @keyframes slideInRight {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- CONNECTIVITY HANDSHAKE STATE BANNER -->
+    <div class="network-banner" id="networkBanner">
+        <div class="network-dot"></div>
+        <span id="networkText">Checking connectivity pipeline...</span>
+    </div>
+
+    <!-- 1. AUTH SCREEN VIEW (PAGE WRAPPER) -->
+    <div id="auth-page-wrapper">
+        <div class="auth-container">
+            <div class="auth-logo">
+                <svg viewBox="0 0 32 32" fill="none">
+                    <circle cx="16" cy="16" r="14" stroke="#1A4D4A" stroke-width="2.5" fill="none"/>
+                    <path d="M16 7 L16 16 L22 19" stroke="#1A4D4A" stroke-width="2.5"/>
+                    <path d="M10 24 L16 12 L22 24" stroke="#338A85" stroke-width="2.5" stroke-linejoin="round"/>
+                </svg>
+                <h1>V.A.S.T.</h1>
+                <p>Voice-Assisted Scheduling & Tasks</p>
+            </div>
+            
+            <form id="authForm" onsubmit="handleAuthSubmit(event)">
+                <div class="auth-form-group" id="fullNameGroup" style="display: none;">
+                    <label for="authFullName">Full Name</label>
+                    <input type="text" id="authFullName" class="auth-input" placeholder="Enter your full name">
+                </div>
+                <div class="auth-form-group">
+                    <label for="authUsername">Username or Email</label>
+                    <input type="text" id="authUsername" class="auth-input" placeholder="Enter your username or email" required>
+                </div>
+                <div class="auth-form-group">
+                    <label for="authPassword">Password</label>
+                    <input type="password" id="authPassword" class="auth-input" placeholder="Enter your password" required>
+                </div>
+                <button type="submit" class="auth-btn" id="authSubmitBtn">Confirm Log In</button>
+            </form>
+
+            <div class="auth-toggle">
+                <span id="authToggleText">Don't have an account yet?</span>
+                <a id="toggleAuthMode" onclick="toggleAuthMode()">Create an Account</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2. MAIN APP CONTENT WRAPPER -->
+    <div id="app-content-wrapper" style="display: none;">
+        <!-- MAIN APP HEADER -->
+        <header id="mainHeader">
+            <div class="logo-group" onclick="navigateTo('dashboard')">
+                <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+                    <circle cx="16" cy="16" r="14" stroke="white" stroke-width="2.5" fill="none"/>
+                    <path d="M16 7 L16 16 L22 19" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
+                    <path d="M10 24 L16 12 L22 24" stroke="#FFF9C4" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                <div>
+                    <h1>V.A.S.T.</h1>
+                    <div class="brand-subtitle">Voice-Assisted Tasks</div>
+                </div>
+            </div>
+            <div class="header-actions">
+                <button class="icon-btn add-manual-btn" id="openModalBtn" title="Add Task Manually">+</button>
+                <button class="icon-btn" id="bellBtn" title="Notifications">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
+                    <div class="badge-dot" id="notifBadge"></div>
+                </button>
+                <button class="icon-btn" id="profileBtn" title="Profile">
+                    <div class="profile-popover-avatar" id="headerProfileAvatar" style="width: 24px; height: 24px; font-size: 11px;">J</div>
+                </button>
+
+                <!-- NOTIFICATION OVERLAY (Notification_Popup V2.png) -->
+                <div class="header-dropdown" id="notifDropdown">
+                    <div class="dropdown-title">
+                        <span>Notifications</span>
+                        <button class="clear-notif-btn" onclick="clearNotifications()">Clear All</button>
+                    </div>
+                    <div class="notif-list" id="notifList"></div>
+                </div>
+
+                <!-- PROFILE OVERLAY (Profile_Popup.png) -->
+                <div class="header-dropdown" id="profileDropdown">
+                    <div class="profile-popover-info">
+                        <div class="profile-popover-avatar" id="avatarLetter">J</div>
+                        <div class="profile-popover-meta">
+                            <h4 id="profileName">Jei Mii</h4>
+                            <p id="profileUserType">VAST Premium Member</p>
+                        </div>
+                    </div>
+                    <div class="profile-menu-item" onclick="navigateTo('settings')">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.1a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                        <span>Account Settings</span>
+                    </div>
+                    <div class="profile-menu-item logout" onclick="handleLogout()">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"></path></svg>
+                        <span>Logout</span>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- SYSTEM ALERTS TOAST -->
+        <div class="system-alert" id="systemAlert">Task Alert</div>
+
+        <main>
+            <!-- 2. HOME / DASHBOARD PANEL -->
+            <section class="view-panel" id="dashboard-panel">
+                <section class="overview-section">
+                    <h2>Overview</h2>
+                    <div class="stats-grid">
+                        <div class="stat-card pendings" onclick="filterDashboardTasks('pending')" title="Show pending tasks">
+                            <div class="stat-info"><div class="stat-number" id="count-pending">0</div><div class="stat-label">In Progress</div></div>
+                            <div class="stat-icon"><svg viewBox="0 0 24 24"><path d="M18 20V10M12 20V4M6 20v-6"/></svg></div>
+                        </div>
+                        <div class="stat-card completed" onclick="filterDashboardTasks('completed')" title="Show completed tasks">
+                            <div class="stat-info"><div class="stat-number" id="count-completed">0</div><div class="stat-label">Completed</div></div>
+                            <div class="stat-icon"><svg viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg></div>
+                        </div>
+                        <div class="stat-card priority" onclick="filterDashboardTasks('high')" title="Show urgent tasks">
+                            <div class="stat-info"><div class="stat-number" id="count-priority">0</div><div class="stat-label">Priority</div></div>
+                            <div class="stat-icon"><svg viewBox="0 0 24 24"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1zM4 22v-7"/></svg></div>
+                        </div>
+                        <div class="stat-card overdue" onclick="filterDashboardTasks('overdue')" title="Show overdue tasks">
+                            <div class="stat-info"><div class="stat-number" id="count-overdue">0</div><div class="stat-label">Overdue</div></div>
+                            <div class="stat-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg></div>
+                        </div>
+                    </div>
+                </section>
+
+                <div class="tasks-layout">
+                    <div>
+                        <h2><span id="todayHeaderLabel">Today's Tasks</span> <span style="font-size:12px; font-weight:normal;" id="filterTextToday"></span></h2>
+                        <div class="tasks-container">
+                            <div class="task-list" id="today-tasks-list"></div>
+                        </div>
+                    </div>
+                    <div>
+                        <h2><span id="upcomingHeaderLabel">Upcoming Tasks</span> <span style="font-size:12px; font-weight:normal;" id="filterTextUpcoming"></span></h2>
+                        <div class="tasks-container">
+                            <div class="task-list" id="upcoming-tasks-list"></div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 3. CALENDAR SYSTEM VIEW -->
+            <section class="view-panel" id="calendar-panel">
+                <div class="calendar-grid-layout">
+                    <div class="calendar-left">
+                        <div class="calendar-header">
+                            <div class="calendar-month-nav">
+                                <button class="cal-arrow" onclick="changeMonth(-1)">‹</button>
+                                <span class="calendar-month-label" id="calendarMonthLabel">May 2026</span>
+                                <button class="cal-arrow" onclick="changeMonth(1)">›</button>
+                            </div>
+                        </div>
+                        
+                        <div class="days-grid" id="calendarGrid"></div>
+                    </div>
+
+                    <div class="calendar-right">
+                        <div class="focused-date-header" id="focusedDateLabel">Sun, May 17</div>
+                        <div class="calendar-tasks-view" id="calendarDayTaskList"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 4. ACCOUNT SETTINGS VIEW -->
+            <section class="view-panel" id="settings-panel">
+                <div class="settings-layout">
+                    
+                    <!-- Left Sidebar (Matching Profile Details layouts) -->
+                    <aside class="settings-sidebar">
+                        <div class="settings-sidebar-profile">
+                            <div class="settings-sidebar-avatar" id="settingsSidebarAvatarLetter">J</div>
+                            <h3 class="settings-sidebar-name" id="settingsSidebarName">Jei Mii <span>✎</span></h3>
+                        </div>
+                        <nav class="settings-nav">
+                            <div class="settings-nav-item active" onclick="switchSettingsTab('profile')">
+                                <span>Profiles and personal details</span>
+                                <span>›</span>
+                            </div>
+                            <div class="settings-nav-item" onclick="switchSettingsTab('password')">
+                                <span>Password and email</span>
+                                <span>›</span>
+                            </div>
+                            <div class="settings-nav-item" onclick="switchSettingsTab('language')">
+                                <span>Language & Region</span>
+                                <span>›</span>
+                            </div>
+                        </nav>
+                    </aside>
+
+                    <!-- Right Cards Area -->
+                    <div class="settings-content">
+                        
+                        <!-- TAB 1: Profile and Personal Details (Profile&PersonalDetails.png) -->
+                        <div class="settings-content-pane active" id="settings-pane-profile">
+                            <div class="settings-card">
+                                <h3>Profile Picture</h3>
+                                <div class="profile-pic-box" id="settingsPicBox" onclick="openUploadPhotoModal()">
+                                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#617D8A" stroke-width="2">
+                                        <line x1="12" y1="5" x2="12" y2="19"></line>
+                                        <line x1="5" y1="12" x2="19" y2="12"></line>
+                                    </svg>
+                                </div>
+                                <button class="auth-btn" style="width: auto; padding: 10px 20px; font-size: 13px; margin-left: auto; display: block;" onclick="openUploadPhotoModal()">Upload photo</button>
+                            </div>
+                            
+                            <div class="settings-card">
+                                <h3>Name</h3>
+                                <div class="auth-form-group">
+                                    <label>First Name</label>
+                                    <input type="text" id="settingsFirstName" class="auth-input">
+                                </div>
+                                <div class="auth-form-group">
+                                    <label>Last Name</label>
+                                    <input type="text" id="settingsLastName" class="auth-input">
+                                </div>
+                                <button class="auth-btn" style="width: auto; padding: 10px 20px; font-size: 13px; margin-left: auto; display: block;" onclick="savePersonalDetails()">Save changes</button>
+                            </div>
+                        </div>
+
+                        <!-- TAB 2: Password and Email (Password and Email.png) -->
+                        <div class="settings-content-pane" id="settings-pane-password">
+                            <div class="settings-card">
+                                <h3>Email</h3>
+                                <div class="auth-form-group">
+                                    <label>Current email</label>
+                                    <input type="email" id="settingsEmail" class="auth-input" readonly style="opacity:0.75; cursor:not-allowed;">
+                                </div>
+                                <div id="additionalEmailsContainer"></div>
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 12px;">
+                                    <a style="font-size: 13px; font-weight:600; color:var(--accent-teal); cursor:pointer;" onclick="openAddEmailModal()">Add Account</a>
+                                    <a style="font-size: 13px; font-weight:600; color:#B91C1C; cursor:pointer;" onclick="deleteEmailAccount()">Delete Account</a>
+                                </div>
+                            </div>
+
+                            <div class="settings-card">
+                                <h3>Password</h3>
+                                <div class="auth-form-group">
+                                    <label>Current password</label>
+                                    <input type="password" id="settingsCurrentPassword" class="auth-input" placeholder="••••••••">
+                                </div>
+                                <div class="auth-form-group">
+                                    <label>New password</label>
+                                    <input type="password" id="settingsNewPassword" class="auth-input" placeholder="••••••••">
+                                </div>
+                                <div class="auth-form-group">
+                                    <label>Re-type new password</label>
+                                    <input type="password" id="settingsRetypePassword" class="auth-input" placeholder="••••••••">
+                                </div>
+                                <button class="auth-btn" style="width: auto; padding: 10px 20px; font-size: 13px; margin-left: auto; display: block;" onclick="saveNewPassword()">Change password</button>
+                            </div>
+                        </div>
+
+                        <!-- TAB 3: Language & Region (Language and region.png) -->
+                        <div class="settings-content-pane" id="settings-pane-language">
+                            <div class="settings-card">
+                                <h3>App language</h3>
+                                <div style="border: 1px solid #E2E8F0; border-radius: 12px; padding: 16px; display: flex; justify-content: space-between; align-items: center; cursor: pointer;" onclick="openLanguageModal()">
+                                    <div>
+                                        <h4 style="font-size: 14px; font-weight: 600; color: var(--text-main);">Account language</h4>
+                                        <p style="font-size: 11px; color: var(--text-muted); margin-top: 4px; line-height: 1.4;" id="settingsActiveLangDesc">English(US)</p>
+                                    </div>
+                                    <span style="font-size: 20px; color: var(--text-muted); margin-left: 12px;">›</span>
+                                </div>
+                            </div>
+
+                            <div class="settings-card">
+                                <h3>Region and format</h3>
+                                <div style="border: 1px solid #E2E8F0; border-radius: 12px; padding: 16px; display: flex; justify-content: space-between; align-items: center; cursor: pointer;" onclick="openRegionModal()">
+                                    <div>
+                                        <h4 style="font-size: 14px; font-weight: 600; color: var(--text-main);">Date and time</h4>
+                                        <p style="font-size: 11px; color: var(--text-muted); margin-top: 4px; line-height: 1.4;" id="settingsActiveRegionDesc">Philippines (English)</p>
+                                    </div>
+                                    <span style="font-size: 20px; color: var(--text-muted); margin-left: 12px;">›</span>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+
+                </div>
+            </section>
+        </main>
+
+        <!-- NOTCHED BOTTOM NAV BAR -->
+        <div class="bottom-nav-container" id="bottomNavShell">
+            <div class="mic-button-wrapper">
+                <button class="mic-btn" id="micBtn" title="Speak to V.A.S.T.">
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+                        <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                        <line x1="12" y1="19" x2="12" y2="23"></line>
+                        <line x1="8" y1="23" x2="16" y2="23"></line>
+                    </svg>
+                </button>
+            </div>
+            <nav class="nav-bar-bg">
+                <a class="nav-item active" id="navHome" onclick="navigateTo('dashboard')">
+                    <svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="14" width="7" height="7" rx="1"></rect><rect x="3" y="14" width="7" height="7" rx="1"></rect></svg>
+                    Dashboard
+                </a>
+                <div style="width: 80px;"></div>
+                <a class="nav-item" id="navCalendar" onclick="navigateTo('calendar')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+                    Calendar
+                </a>
+            </nav>
+        </div>
+    </div>
+
+    <!-- MANUAL ADD TASK MODAL -->
+    <div class="modal-overlay" id="taskModal">
+        <div class="modal-card">
+            <button class="modal-close" id="closeModalBtn">&times;</button>
+            <h3>Add Task</h3>
+            <form id="taskForm" onsubmit="handleAddTaskSubmit(event)">
+                <div class="form-group">
+                    <input type="text" id="taskTitle" placeholder="Add Title" required>
+                </div>
+                <div class="form-group">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+                    <input type="date" id="taskDate" required>
+                </div>
+                <div class="form-group">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                    <input type="time" id="taskTime" required>
+                </div>
+                <div class="form-group">
+                    <select id="taskPriority">
+                        <option value="low">Low Priority</option>
+                        <option value="medium" selected>Medium Priority</option>
+                        <option value="high">High Priority</option>
+                    </select>
+                </div>
+                <button type="submit" class="save-btn">Save</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- EDIT TASK MODAL -->
+    <div class="modal-overlay" id="editTaskModal">
+        <div class="modal-card">
+            <button class="modal-close" onclick="closeEditTaskModal()">&times;</button>
+            <h3>Edit Task</h3>
+            <form id="editTaskForm" onsubmit="handleEditTaskSubmit(event)">
+                <input type="hidden" id="editTaskId">
+                <div class="form-group">
+                    <input type="text" id="editTaskTitle" placeholder="Task Title" required>
+                </div>
+                <div class="form-group">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+                    <input type="date" id="editTaskDate" required>
+                </div>
+                <div class="form-group">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                    <input type="time" id="editTaskTime" required>
+                </div>
+                <div class="form-group">
+                    <select id="editTaskPriority">
+                        <option value="low">Low Priority</option>
+                        <option value="medium">Medium Priority</option>
+                        <option value="high">High Priority</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <select id="editTaskStatus">
+                        <option value="pending">In Progress</option>
+                        <option value="completed">Completed</option>
+                    </select>
+                </div>
+                <button type="submit" class="save-btn">Save Changes</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- DELETE CONFIRMATION MODAL -->
+    <div class="modal-overlay" id="deleteConfirmModal">
+        <div class="modal-card" style="max-width: 400px; text-align: center;">
+            <button class="modal-close" onclick="closeDeleteConfirmModal()">&times;</button>
+            <div style="margin-bottom: 16px;">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#E5A9A9" stroke-width="2" style="margin: 0 auto;">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="12" y1="8" x2="12" y2="12"></line>
+                    <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                </svg>
+            </div>
+            <h3 style="margin-bottom: 12px; font-size: 18px;">Delete Task</h3>
+            <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 24px;">Are you sure you want to delete this task? This action cannot be undone.</p>
+            <div style="display: flex; gap: 12px;">
+                <button class="auth-btn" style="background-color: #E2E8F0; color: var(--text-main); margin-top:0;" onclick="closeDeleteConfirmModal()">Cancel</button>
+                <button class="auth-btn" style="background-color: #E5A9A9; color: white; margin-top:0;" id="confirmDeleteBtn">Delete</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- VOICE RECOGNITION POPUP / TOAST -->
+    <div class="voice-toast" id="voiceToast">Listening... Speak now.</div>
+
+    <!-- HIGH-FIDELITY MODAL: UPLOAD PHOTO / PREVIEW (Upload photo.png) -->
+    <div class="modal-overlay" id="uploadPhotoModal">
+        <div class="modal-card" style="text-align: center;">
+            <button class="modal-close" onclick="closeUploadPhotoModal()">&times;</button>
+            <h3>Preview</h3>
+            <div id="avatarCirclePreview" style="width: 140px; height: 140px; border-radius: 50%; background-color: #E2E8F0; display: flex; align-items: center; justify-content: center; font-size: 48px; font-weight: 600; color: var(--accent-teal); margin: 0 auto 16px; background-size: cover; background-position: center;">J</div>
+            <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 12px;">Choose a profile color preset below, or select a file:</p>
+            <input type="file" id="photoFileInput" style="display: none;" onchange="handlePhotoFileSelected(event)">
+            <button class="auth-btn" style="width: auto; padding: 10px 20px; font-size: 13px; margin-bottom: 16px; background-color: var(--text-muted);" onclick="document.getElementById('photoFileInput').click()">Browse Device File</button>
+            
+            <div class="avatar-presets-grid">
+                <div class="avatar-preset-btn" style="background-color: #A3D9C9;" onclick="selectAvatarPreset('#A3D9C9', '')"></div>
+                <div class="avatar-preset-btn" style="background-color: #F0E4B1;" onclick="selectAvatarPreset('#F0E4B1', '')"></div>
+                <div class="avatar-preset-btn" style="background-color: #F5CDA7;" onclick="selectAvatarPreset('#F5CDA7', '')"></div>
+                <div class="avatar-preset-btn" style="background-color: #E5A9A9;" onclick="selectAvatarPreset('#E5A9A9', '')"></div>
+                <div class="avatar-preset-btn" style="background-color: #E0F2F1;" onclick="selectAvatarPreset('#E0F2F1', '')"></div>
+                <div class="avatar-preset-btn" style="background-color: #D1ECE7;" onclick="selectAvatarPreset('#D1ECE7', '')"></div>
+            </div>
+            
+            <div style="display: flex; gap: 12px; margin-top: 24px;">
+                <button class="auth-btn" style="background-color: #E2E8F0; color: var(--text-main);" onclick="closeUploadPhotoModal()">Cancel</button>
+                <button class="auth-btn" onclick="saveUploadPhoto()">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- HIGH-FIDELITY MODAL: ADD EMAIL ACCOUNT (Add email account.png) -->
+    <div class="modal-overlay" id="addEmailModal">
+        <div class="modal-card">
+            <button class="modal-close" onclick="closeAddEmailModal()">&times;</button>
+            <h3>Add email account</h3>
+            <form onsubmit="handleAddEmailSubmit(event)">
+                <div class="form-group">
+                    <input type="email" id="modalAddEmail" placeholder="Email" required>
+                </div>
+                <div class="form-group">
+                    <input type="password" id="modalAddPassword" placeholder="Password" required>
+                </div>
+                <div style="display: flex; gap: 12px; margin-top: 24px;">
+                    <button type="button" class="auth-btn" style="background-color: #E2E8F0; color: var(--text-main);" onclick="closeAddEmailModal()">Cancel</button>
+                    <button type="submit" class="auth-btn">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- HIGH-FIDELITY MODAL: ACCOUNT LANGUAGE (Select language.png) -->
+    <div class="modal-overlay" id="languageModal">
+        <div class="modal-card">
+            <button class="modal-close" onclick="closeLanguageModal()">&times;</button>
+            <h3>Account language</h3>
+            <div class="form-group" style="margin-bottom: 12px;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 18px; height: 18px;"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                <input type="text" id="langSearchInput" placeholder="Search languages" oninput="filterLanguages()">
+            </div>
+            <p style="font-weight: 700; font-size: 13px; margin: 12px 0 6px;">All languages</p>
+            <div class="popup-list" id="languageListContainer">
+                <!-- Loaded dynamically below -->
+            </div>
+        </div>
+    </div>
+
+    <!-- HIGH-FIDELITY MODAL: REGION AND FORMAT (Region and format.png) -->
+    <div class="modal-overlay" id="regionModal">
+        <div class="modal-card">
+            <button class="modal-close" onclick="closeRegionModal()">&times;</button>
+            <h3>Date and time</h3>
+            <div class="form-group" style="margin-bottom: 12px;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 18px; height: 18px;"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                <input type="text" id="regionSearchInput" placeholder="Search regions" oninput="filterRegions()">
+            </div>
+            <p style="font-weight: 700; font-size: 13px; margin: 12px 0 6px;">All regions</p>
+            <div class="popup-list" id="regionListContainer">
+                <!-- Loaded dynamically below -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- DATA LAYER CONFIG & BACKEND PROBE ---
+        const API_BASE = "http://127.0.0.1:8000/api";
+        const ENDPOINTS = {
+            summary: `${API_BASE}/tasks/summary/`,
+            today: `${API_BASE}/tasks/today/`,
+            upcoming: `${API_BASE}/tasks/upcoming/`,
+            tasks: `${API_BASE}/tasks/`,
+            voice: `${API_BASE}/tasks/from-voice/`,
+            login: `${API_BASE}/accounts/login/`,
+            register: `${API_BASE}/accounts/register/`
+        };
+
+        let isOnline = false;
+        let currentUser = null;
+        let activeAuthMode = 'login';
+        
+        // Dynamic Filter State
+        let currentFilter = 'all';
+
+        // May 2026 default timeframe constraints to perfectly match images
+        let selectedCalendarDate = new Date(2026, 4, 17); // May 17, 2026
+        let calendarYear = 2026;
+        let calendarMonth = 4; // May (0-indexed)
+
+        // Local Storage fallback system - starting with cleanly emptied arrays
+        let localTasks = [];
+        let localNotifications = [];
+        let extraEmails = [];
+
+        // Dynamic presets settings
+        let selectedLang = "English(US)";
+        let selectedRegion = "Philippines (English)";
+        let activeAvatarBg = "#E2E8F0";
+        let activeAvatarImage = "";
+
+        // Modal specific trackers
+        let taskToDeleteId = null;
+        let renderedTaskCache = {};
+        let calendarTasksCache = [];
+
+        const languagesData = [
+            { name: "English(US)", sub: "" },
+            { name: "Af-Soomaali", sub: "Somali" },
+            { name: "Afrikaans", sub: "Afrikaans" },
+            { name: "Bahasa Indonesia", sub: "Indonesian" },
+            { name: "Deutsch", sub: "German" },
+            { name: "Español", sub: "Spanish" },
+            { name: "Français", sub: "French" }
+        ];
+
+        const regionsData = [
+            { name: "Philippines (English)", sub: "3/14/26, 18:07" },
+            { name: "Albania (Albanian)", sub: "3/14/26, 6:09 PM" },
+            { name: "Algeria (Arabic)", sub: "3/14/26, 5:08" },
+            { name: "Algeria (French)", sub: "3/14/26, 5:08" },
+            { name: "United States (English)", sub: "3/14/26, 5:08 AM" },
+            { name: "Japan (Japanese)", sub: "3/14/26, 19:08" }
+        ];
+
+        // Cache elements
+        const networkBanner = document.getElementById('networkBanner');
+        const networkText = document.getElementById('networkText');
+        const mainHeader = document.getElementById('mainHeader');
+        const authPageWrapper = document.getElementById('auth-page-wrapper');
+        const appContentWrapper = document.getElementById('app-content-wrapper');
+        const dashboardPanel = document.getElementById('dashboard-panel');
+        const calendarPanel = document.getElementById('calendar-panel');
+
+        const bellBtn = document.getElementById('bellBtn');
+        const profileBtn = document.getElementById('profileBtn');
+        const notifDropdown = document.getElementById('notifDropdown');
+        const profileDropdown = document.getElementById('profileDropdown');
+
+        const taskModal = document.getElementById('taskModal');
+        const openModalBtn = document.getElementById('openModalBtn');
+        const closeModalBtn = document.getElementById('closeModalBtn');
+        const taskForm = document.getElementById('taskForm');
+        
+        const micBtn = document.getElementById('micBtn');
+        const voiceToast = document.getElementById('voiceToast');
+        const systemAlert = document.getElementById('systemAlert');
+
+        // Application Startup Initialization
+        document.addEventListener('DOMContentLoaded', async () => {
+            initializeDatabase();
+            await checkBackendHandshake();
+            checkUserSession();
+            
+            // Set default date input value to today
+            document.getElementById('taskDate').value = getTodayDateString();
+            document.getElementById('taskTime').value = "09:00";
+            
+            initVoiceRecognition();
+            initDeleteConfirmationListener();
+        });
+
+        // --- AUTHENTICATION & SESSION HANDLING ---
+        function checkUserSession() {
+            const savedUser = localStorage.getItem('vast_user');
+            if (savedUser) {
+                currentUser = JSON.parse(savedUser);
+                applySessionLogin(currentUser.username);
+            } else {
+                applySessionLogout();
+            }
+        }
+
+        // Toggle Auth layout switch between sign-in and registration models
+        function toggleAuthMode() {
+            const fullNameGroup = document.getElementById('fullNameGroup');
+            const authSubmitBtn = document.getElementById('authSubmitBtn');
+            const authToggleText = document.getElementById('authToggleText');
+            const toggleAuthModeLink = document.getElementById('toggleAuthMode');
+            
+            if (activeAuthMode === 'login') {
+                activeAuthMode = 'signup';
+                fullNameGroup.style.display = 'block';
+                authSubmitBtn.textContent = 'Register Account';
+                authToggleText.textContent = 'Already have an account?';
+                toggleAuthModeLink.textContent = 'Log In Here';
+            } else {
+                activeAuthMode = 'login';
+                fullNameGroup.style.display = 'none';
+                authSubmitBtn.textContent = 'Confirm Log In';
+                authToggleText.textContent = "Don't have an account yet?";
+                toggleAuthModeLink.textContent = 'Create an Account';
+            }
+        }
+
+        // Handle confirmation of log in or user registration submitting form
+        async function handleAuthSubmit(event) {
+            event.preventDefault();
+            const usernameInput = document.getElementById('authUsername').value.trim();
+            const passwordInput = document.getElementById('authPassword').value;
+            const fallbackName = usernameInput.charAt(0).toUpperCase() + usernameInput.slice(1);
+            const fullNameInput = document.getElementById('authFullName').value.trim() || fallbackName;
+
+            try {
+                const response = await fetch(activeAuthMode === 'signup' ? ENDPOINTS.register : ENDPOINTS.login, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        username: usernameInput,
+                        password: passwordInput,
+                        name: fullNameInput,
+                        email: usernameInput.includes('@') ? usernameInput : ''
+                    })
+                });
+
+                if (!response.ok) {
+                    const errorBody = await response.json().catch(() => ({}));
+                    showSystemToast(formatApiError(errorBody));
+                    return;
+                }
+
+                const user = await response.json();
+                currentUser = {
+                    username: user.username,
+                    name: user.name || fallbackName,
+                    email: user.email || (usernameInput.includes('@') ? usernameInput : ''),
+                    avatarBg: "#338A85",
+                    avatarImg: ""
+                };
+                isOnline = true;
+            } catch (err) {
+                console.error("Backend auth unavailable, using local session fallback:", err);
+                currentUser = {
+                    username: usernameInput,
+                    name: activeAuthMode === 'signup' ? fullNameInput : fallbackName,
+                    email: usernameInput.includes('@') ? usernameInput : '',
+                    avatarBg: "#338A85",
+                    avatarImg: ""
+                };
+            }
+
+            localStorage.setItem('vast_user', JSON.stringify(currentUser));
+            
+            // Vocal feedback validation speech synthesizer
+            triggerVocalResponse(`Welcome to VAST, ${currentUser.name}! Speak your tasks or schedule manually.`);
+
+            applySessionLogin(currentUser.username);
+        }
+
+        function applySessionLogin(username) {
+            // Un-render Auth page completely and reveal Dashboard Wrapper
+            authPageWrapper.style.display = 'none';
+            appContentWrapper.style.display = 'flex';
+            
+            // Apply profile updates
+            updateProfileUI();
+
+            navigateTo('dashboard');
+            window.scrollTo(0, 0); // Reset page layout scroll position completely
+        }
+
+        function updateProfileUI() {
+            if (!currentUser) return;
+            
+            const initials = currentUser.name.charAt(0).toUpperCase();
+            
+            // Update Text Nodes
+            document.getElementById('profileName').textContent = currentUser.name;
+            document.getElementById('avatarLetter').textContent = initials;
+            document.getElementById('headerProfileAvatar').textContent = initials;
+            document.getElementById('settingsSidebarAvatarLetter').textContent = initials;
+
+            // Apply Presets (Image vs Color Backgrounds)
+            const elements = [
+                document.getElementById('avatarLetter'),
+                document.getElementById('headerProfileAvatar'),
+                document.getElementById('settingsSidebarAvatarLetter'),
+                document.getElementById('avatarCirclePreview')
+            ];
+
+            elements.forEach(el => {
+                if (el) {
+                    if (currentUser.avatarImg) {
+                        el.style.backgroundImage = `url(${currentUser.avatarImg})`;
+                        el.textContent = "";
+                    } else {
+                        el.style.backgroundImage = "none";
+                        el.textContent = initials;
+                        el.style.backgroundColor = currentUser.avatarBg || "#338A85";
+                        el.style.color = "white";
+                    }
+                }
+            });
+        }
+
+        function handleLogout() {
+            localStorage.removeItem('vast_user');
+            currentUser = null;
+            applySessionLogout();
+            closeAllHeaderPopups();
+        }
+
+        function applySessionLogout() {
+            // Hide dashboard framework completely and reveal clean Fullscreen Centered Auth page
+            appContentWrapper.style.display = 'none';
+            authPageWrapper.style.display = 'flex';
+            
+            dashboardPanel.classList.remove('active');
+            calendarPanel.classList.remove('active');
+            document.getElementById('settings-panel').classList.remove('active');
+            window.scrollTo(0, 0); // Reset page layout scroll position completely
+        }
+
+        // --- LOCAL STORAGE DATABASE INITS (Empty by default) ---
+        function initializeDatabase() {
+            if (!localStorage.getItem('vast_tasks')) {
+                localStorage.setItem('vast_tasks', JSON.stringify([]));
+            }
+            if (!localStorage.getItem('vast_notifs')) {
+                localStorage.setItem('vast_notifs', JSON.stringify([]));
+            }
+            if (!localStorage.getItem('vast_emails')) {
+                localStorage.setItem('vast_emails', JSON.stringify([]));
+            }
+            localTasks = JSON.parse(localStorage.getItem('vast_tasks'));
+            localNotifications = JSON.parse(localStorage.getItem('vast_notifs'));
+            extraEmails = JSON.parse(localStorage.getItem('vast_emails'));
+        }
+
+        // --- DUAL-MODE HANDSHAKE MONITOR ---
+        async function checkBackendHandshake() {
+            try {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 2000); // 2s quick probe
+                
+                const response = await fetch(ENDPOINTS.summary, { signal: controller.signal });
+                clearTimeout(timeoutId);
+                
+                if (response.ok) {
+                    isOnline = true;
+                    networkBanner.classList.remove('offline');
+                    networkText.textContent = "Live Connected to V.A.S.T. Django Cloud Backend DB";
+                } else {
+                    throw new Error("API responded with an error status.");
+                }
+            } catch (err) {
+                isOnline = false;
+                networkBanner.classList.add('offline');
+                networkText.textContent = "Offline Mode Active (Using Premium Local Handshake Store)";
+            }
+        }
+
+        // --- DASHBOARD DISPLAY SYSTEM ---
+        async function fetchDashboardData() {
+            // Live backend versus Offline local execution switch
+            if (isOnline) {
+                try {
+                    const [summaryRes, todayRes, upcomingRes, allTasksRes] = await Promise.all([
+                        fetch(ENDPOINTS.summary),
+                        fetch(ENDPOINTS.today),
+                        fetch(ENDPOINTS.upcoming),
+                        fetch(ENDPOINTS.tasks)
+                    ]);
+
+                    if (summaryRes.ok) {
+                        const summary = await summaryRes.json();
+                        updateMetricsSummary(summary);
+                    }
+                    
+                    let todayTasks = [];
+                    let upcomingTasks = [];
+                    if (todayRes.ok) todayTasks = await todayRes.json();
+                    if (upcomingRes.ok) upcomingTasks = await upcomingRes.json();
+                    if (allTasksRes.ok) {
+                        calendarTasksCache = await allTasksRes.json();
+                        calendarTasksCache.forEach(task => {
+                            renderedTaskCache[task.id] = task;
+                        });
+                    }
+
+                    // Apply unified filtering & render
+                    filterAndRenderDashboard(todayTasks, upcomingTasks);
+                } catch (err) {
+                    console.error("Backend pipeline interrupted, returning to Offline Handshake execution...", err);
+                    isOnline = false;
+                    fetchDashboardDataOffline();
+                }
+            } else {
+                fetchDashboardDataOffline();
+            }
+        }
+
+        function fetchDashboardDataOffline() {
+            // Calculate Offline Summary Statistics
+            const todayStr = "2026-05-17"; // Figma baseline anchor date context
+
+            const pending = localTasks.filter(t => t.status !== 'completed').length;
+            const completed = localTasks.filter(t => t.status === 'completed').length;
+            const priority = localTasks.filter(t => t.priority === 'high' && t.status !== 'completed').length;
+            
+            // Check overdue task constraints
+            const overdue = localTasks.filter(t => {
+                return t.status !== 'completed' && t.date < todayStr;
+            }).length;
+
+            updateMetricsSummary({ pending, completed, priority, overdue });
+
+            // Segment database normally based on May 17, 2026 timeline constraints
+            const todayTasks = localTasks.filter(t => t.date === todayStr);
+            const upcomingTasks = localTasks.filter(t => t.date > todayStr);
+
+            filterAndRenderDashboard(todayTasks, upcomingTasks);
+        }
+
+        // --- UNIFIED FILTER RENDERING ENGINE ---
+        function filterAndRenderDashboard(allTodayTasks, allUpcomingTasks) {
+            let filteredToday = [...allTodayTasks];
+            let filteredUpcoming = [...allUpcomingTasks];
+            let todayLabel = "Today's Tasks";
+            let upcomingLabel = "Upcoming Tasks";
+
+            const todayStr = "2026-05-17";
+
+            if (currentFilter === 'overdue') {
+                // For Overdue, we fetch from our local pool / all tasks
+                const sourceList = isOnline ? [...allTodayTasks, ...allUpcomingTasks] : localTasks;
+                filteredToday = sourceList.filter(t => t.date < todayStr && t.status !== 'completed');
+                filteredUpcoming = sourceList.filter(t => t.date < todayStr && t.status === 'completed');
+                
+                todayLabel = "Overdue Tasks (Incomplete)";
+                upcomingLabel = "Overdue Tasks (Completed)";
+            } else if (currentFilter !== 'all') {
+                if (currentFilter === 'pending') {
+                    filteredToday = filteredToday.filter(t => t.status !== 'completed');
+                    filteredUpcoming = filteredUpcoming.filter(t => t.status !== 'completed');
+                } else if (currentFilter === 'completed') {
+                    filteredToday = filteredToday.filter(t => t.status === 'completed');
+                    filteredUpcoming = filteredUpcoming.filter(t => t.status === 'completed');
+                } else if (currentFilter === 'high') {
+                    filteredToday = filteredToday.filter(t => t.priority === 'high');
+                    filteredUpcoming = filteredUpcoming.filter(t => t.priority === 'high');
+                }
+            }
+
+            // Update column labels dynamically
+            document.getElementById('todayHeaderLabel').textContent = todayLabel;
+            document.getElementById('upcomingHeaderLabel').textContent = upcomingLabel;
+
+            renderTaskList(filteredToday, 'today-tasks-list', true);
+            renderTaskList(filteredUpcoming, 'upcoming-tasks-list', false);
+        }
+
+        // --- DASHBOARD CARD METRICS UPDATE ACTION ---
+        function updateMetricsSummary(data) {
+            document.getElementById('count-pending').textContent = data.pending ?? data.in_progress ?? 0;
+            document.getElementById('count-completed').textContent = data.completed ?? 0;
+            document.getElementById('count-priority').textContent = data.priority ?? 0;
+            document.getElementById('count-overdue').textContent = data.overdue ?? 0;
+        }
+
+        function filterDashboardTasks(filterType) {
+            if (currentFilter === filterType) {
+                currentFilter = 'all'; // Toggle off
+                showSystemToast("Clearing filters. Displaying all tasks.");
+            } else {
+                currentFilter = filterType;
+                showSystemToast(`Filtering by: ${filterType.toUpperCase()}`);
+            }
+
+            const activeFilters = ['pending', 'completed', 'high', 'overdue'];
+            const labels = ['pendings', 'completed', 'priority', 'overdue'];
+            
+            labels.forEach((lbl, index) => {
+                const card = document.querySelector(`.stat-card.${lbl}`);
+                if (activeFilters[index] === currentFilter) {
+                    card.style.transform = 'scale(1.04)';
+                    card.style.border = '2px solid var(--header-bg)';
+                } else {
+                    card.style.transform = '';
+                    card.style.border = '';
+                }
+            });
+
+            // Update filter sub-text dynamically
+            const subLabel = currentFilter !== 'all' ? `(${currentFilter.toUpperCase()})` : '';
+            document.getElementById('filterTextToday').textContent = subLabel;
+            document.getElementById('filterTextUpcoming').textContent = subLabel;
+
+            fetchDashboardData();
+        }
+
+        function renderTaskList(tasks, targetContainerId, isToday) {
+            const container = document.getElementById(targetContainerId);
+            container.innerHTML = '';
+
+            if (tasks.length === 0) {
+                container.innerHTML = `<div class="no-tasks">No tasks found</div>`;
+                return;
+            }
+
+            // Sort tasks by time chronologically
+            tasks.sort((a, b) => a.time.localeCompare(b.time));
+
+            tasks.forEach(task => {
+                renderedTaskCache[task.id] = task;
+                const taskItem = document.createElement('div');
+                taskItem.className = `task-item ${task.status === 'completed' ? 'is-completed' : ''}`;
+                
+                const timeString = formatTime(task.time);
+                const displayMetadata = isToday ? timeString : `${formatShortDate(task.date)} • ${timeString}`;
+
+                taskItem.innerHTML = `
+                    <div class="task-left">
+                        <input type="checkbox" class="task-checkbox" ${task.status === 'completed' ? 'checked' : ''} onchange="toggleTaskStatus(${task.id}, '${task.status}')">
+                        <span class="task-title">${escapeHTML(task.title)}</span>
+                    </div>
+                    <div class="task-right">
+                        <span class="task-time">${displayMetadata}</span>
+                        <div class="priority-dot ${task.priority}" title="${task.priority} priority"></div>
+                        <button class="edit-task-btn" title="Edit task" onclick="openEditTaskModal(event, ${task.id})">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                        </button>
+                        <button class="delete-task-btn" title="Delete task" onclick="deleteTask(${task.id})">&times;</button>
+                    </div>
+                `;
+                container.appendChild(taskItem);
+            });
+        }
+
+        // --- TASKS CRUCIAL OPERATION ENGINE ---
+        async function toggleTaskStatus(taskId, currentStatus) {
+            const nextStatus = currentStatus === 'completed' ? 'pending' : 'completed';
+
+            try {
+                const response = await fetch(`${ENDPOINTS.tasks}${taskId}/`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ status: nextStatus })
+                });
+                if (response.ok) {
+                    isOnline = true;
+                    fetchDashboardData();
+                    showSystemToast(nextStatus === 'completed' ? "Task marked complete." : "Task marked pending.");
+                    return;
+                }
+                const errorBody = await response.json().catch(() => ({}));
+                showSystemToast(`Update failed: ${formatApiError(errorBody)}`);
+            } catch (err) {
+                console.error("Online patch mutation failure, transitioning offline:", err);
+            }
+
+            // Offline Handshake Fallback execution
+            const taskIndex = localTasks.findIndex(t => t.id === taskId);
+            if (taskIndex !== -1) {
+                localTasks[taskIndex].status = nextStatus;
+                saveLocalDatabase();
+                
+                if (nextStatus === 'completed') {
+                    showSystemToast(`Completed: ${localTasks[taskIndex].title}!`);
+                    addSystemNotification("Congratulations!", `You've completed ${localTasks[taskIndex].title}.`, "Just now", "complete");
+                }
+                
+                fetchDashboardData();
+                if (calendarPanel.classList.contains('active')) {
+                    renderCalendarMatrix();
+                    inspectCalendarSelectedDayTasks();
+                }
+            }
+        }
+
+        // Trigger custom styled delete confirmation modal
+        function deleteTask(taskId) {
+            taskToDeleteId = taskId;
+            const modal = document.getElementById('deleteConfirmModal');
+            modal.classList.add('active');
+        }
+
+        function closeDeleteConfirmModal() {
+            document.getElementById('deleteConfirmModal').classList.remove('active');
+            taskToDeleteId = null;
+        }
+
+        function initDeleteConfirmationListener() {
+            document.getElementById('confirmDeleteBtn').addEventListener('click', async () => {
+                if (!taskToDeleteId) return;
+                const taskId = taskToDeleteId;
+                closeDeleteConfirmModal();
+
+                try {
+                    const response = await fetch(`${ENDPOINTS.tasks}${taskId}/`, {
+                        method: 'DELETE'
+                    });
+                    if (response.ok) {
+                        isOnline = true;
+                        fetchDashboardData();
+                        showSystemToast("Task deleted successfully.");
+                        return;
+                    }
+                } catch (err) {
+                    console.error("Online delete process failure:", err);
+                }
+
+                // Offline Local Database fallback delete
+                const taskIndex = localTasks.findIndex(t => t.id === taskId);
+                if (taskIndex !== -1) {
+                    const deletedTitle = localTasks[taskIndex].title;
+                    localTasks.splice(taskIndex, 1);
+                    saveLocalDatabase();
+                    showSystemToast(`Deleted task: ${deletedTitle}`);
+                    
+                    fetchDashboardData();
+                    if (calendarPanel.classList.contains('active')) {
+                        renderCalendarMatrix();
+                        inspectCalendarSelectedDayTasks();
+                    }
+                }
+            });
+        }
+
+        // --- TASK EDITING & RETRIEVAL WORKFLOW ---
+        async function openEditTaskModal(event, taskId) {
+            if (event) event.stopPropagation();
+
+            let task = renderedTaskCache[taskId] || calendarTasksCache.find(t => t.id === taskId) || localTasks.find(t => t.id === taskId);
+
+            if (!task) {
+                try {
+                    const response = await fetch(`${ENDPOINTS.tasks}${taskId}/`);
+                    if (response.ok) {
+                        task = await response.json();
+                        renderedTaskCache[task.id] = task;
+                    }
+                } catch (err) {
+                    console.error("Failed to fetch task for editing:", err);
+                }
+            }
+
+            if (!task) {
+                showSystemToast("Could not load this task for editing.");
+                return;
+            }
+
+            document.getElementById('editTaskId').value = task.id;
+            document.getElementById('editTaskTitle').value = task.title;
+            document.getElementById('editTaskDate').value = task.date;
+            document.getElementById('editTaskTime').value = normalizeTimeForInput(task.time);
+            document.getElementById('editTaskPriority').value = task.priority;
+            document.getElementById('editTaskStatus').value = task.status || 'pending';
+
+            document.getElementById('editTaskModal').classList.add('active');
+        }
+
+        function closeEditTaskModal() {
+            document.getElementById('editTaskModal').classList.remove('active');
+        }
+
+        async function handleEditTaskSubmit(event) {
+            event.preventDefault();
+            const taskId = parseInt(document.getElementById('editTaskId').value, 10);
+            const title = document.getElementById('editTaskTitle').value.trim();
+            const date = document.getElementById('editTaskDate').value;
+            const time = document.getElementById('editTaskTime').value;
+            const priority = document.getElementById('editTaskPriority').value;
+            const status = document.getElementById('editTaskStatus').value;
+
+            const payload = {
+                title,
+                date,
+                time,
+                priority,
+                status
+            };
+
+            try {
+                const response = await fetch(`${ENDPOINTS.tasks}${taskId}/`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if (response.ok) {
+                    isOnline = true;
+                    closeEditTaskModal();
+                    fetchDashboardData();
+                    showSystemToast("Task saved successfully!");
+                    return;
+                }
+                const errorBody = await response.json().catch(() => ({}));
+                showSystemToast(`Edit failed: ${formatApiError(errorBody)}`);
+            } catch (err) {
+                console.error("Online task edit mutation failure:", err);
+            }
+
+            // Offline Local Database fallback update
+            const taskIndex = localTasks.findIndex(t => t.id === taskId);
+            if (taskIndex !== -1) {
+                localTasks[taskIndex] = {
+                    ...localTasks[taskIndex],
+                    ...payload
+                };
+                saveLocalDatabase();
+                closeEditTaskModal();
+                showSystemToast(`Updated task: ${title}`);
+                
+                fetchDashboardData();
+                if (calendarPanel.classList.contains('active')) {
+                    renderCalendarMatrix();
+                    inspectCalendarSelectedDayTasks();
+                }
+            }
+        }
+
+        // --- MANUAL SUBMIT ENGINE ---
+        async function handleAddTaskSubmit(event) {
+            event.preventDefault();
+            const title = document.getElementById('taskTitle').value.trim();
+            const date = document.getElementById('taskDate').value;
+            const time = document.getElementById('taskTime').value;
+            const priority = document.getElementById('taskPriority').value;
+
+            const payload = {
+                title,
+                date,
+                time,
+                priority,
+                status: "pending"
+            };
+
+            try {
+                const response = await fetch(ENDPOINTS.tasks, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if (response.ok) {
+                    isOnline = true;
+                    finishTaskCreation();
+                    return;
+                }
+                const errorBody = await response.json().catch(() => ({}));
+                showSystemToast(`Create failed: ${formatApiError(errorBody)}`);
+            } catch (err) {
+                console.error("Online task creation fallback executed:", err);
+            }
+
+            // Offline payload mock insertion
+            const newTask = {
+                id: Date.now(),
+                ...payload
+            };
+            localTasks.push(newTask);
+            saveLocalDatabase();
+            finishTaskCreation();
+        }
+
+        function finishTaskCreation() {
+            taskForm.reset();
+            // Default restore
+            document.getElementById('taskDate').value = getTodayDateString();
+            document.getElementById('taskTime').value = "09:00";
+            
+            toggleModal(false);
+            fetchDashboardData();
+            
+            if (calendarPanel.classList.contains('active')) {
+                renderCalendarMatrix();
+                inspectCalendarSelectedDayTasks();
+            }
+
+            showSystemToast("Task successfully created!");
+            triggerVocalResponse("Task successfully created.");
+        }
+
+        function saveLocalDatabase() {
+            localStorage.setItem('vast_tasks', JSON.stringify(localTasks));
+            localStorage.setItem('vast_notifs', JSON.stringify(localNotifications));
+            localStorage.setItem('vast_emails', JSON.stringify(extraEmails));
+        }
+
+        // --- CALENDAR GRID IMPLEMENTATION ---
+        function renderCalendarMatrix() {
+            const grid = document.getElementById('calendarGrid');
+            grid.innerHTML = '';
+
+            // Render Weekday Labels Sun-Sat
+            const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+            weekdays.forEach(day => {
+                const dayHeader = document.createElement('div');
+                dayHeader.className = 'weekday-label';
+                dayHeader.textContent = day;
+                grid.appendChild(dayHeader);
+            });
+
+            // May 2026 starts on Friday (start day offset = 5)
+            const daysInMonth = new Date(calendarYear, calendarMonth + 1, 0).getDate();
+            const startDayOffset = new Date(calendarYear, calendarMonth, 1).getDay();
+
+            // Populate empty calendar spaces
+            for (let i = 0; i < startDayOffset; i++) {
+                const emptyCell = document.createElement('div');
+                emptyCell.className = 'cal-day empty-day';
+                grid.appendChild(emptyCell);
+            }
+
+            // Draw month days
+            for (let day = 1; day <= daysInMonth; day++) {
+                const dayCell = document.createElement('div');
+                dayCell.className = 'cal-day';
+                dayCell.textContent = day;
+
+                // Formulate verification date context
+                const yearStr = calendarYear;
+                const monthStr = String(calendarMonth + 1).padStart(2, '0');
+                const dayStr = String(day).padStart(2, '0');
+                const dateCompare = `${yearStr}-${monthStr}-${dayStr}`;
+
+                // Mark date cell if active selected
+                if (selectedCalendarDate.getDate() === day && 
+                    selectedCalendarDate.getMonth() === calendarMonth && 
+                    selectedCalendarDate.getFullYear() === calendarYear) {
+                    dayCell.classList.add('active-day');
+                }
+
+                // CHECK DYNAMIC TASK DOT: Circles below ONLY appear if tasks are scheduled for that specific day
+                const calendarSourceTasks = isOnline ? calendarTasksCache : localTasks;
+                const hasTasks = calendarSourceTasks.some(t => t.date === dateCompare);
+                if (hasTasks) {
+                    dayCell.classList.add('has-tasks');
+                }
+
+                dayCell.addEventListener('click', () => {
+                    selectCalendarDate(day);
+                });
+
+                grid.appendChild(dayCell);
+            }
+
+            // Dynamic header label
+            const monthNames = [
+                "January", "February", "March", "April", "May", "June",
+                "July", "August", "September", "October", "November", "December"
+            ];
+            document.getElementById('calendarMonthLabel').textContent = `${monthNames[calendarMonth]} ${calendarYear}`;
+        }
+
+        function changeMonth(dir) {
+            calendarMonth += dir;
+            if (calendarMonth < 0) {
+                calendarMonth = 11;
+                calendarYear--;
+            } else if (calendarMonth > 11) {
+                calendarMonth = 0;
+                calendarYear++;
+            }
+            
+            // Re-anchor active day boundary selection safety checks
+            selectedCalendarDate = new Date(calendarYear, calendarMonth, 1);
+            renderCalendarMatrix();
+            inspectCalendarSelectedDayTasks();
+        }
+
+        function selectCalendarDate(day) {
+            selectedCalendarDate = new Date(calendarYear, calendarMonth, day);
+            renderCalendarMatrix();
+            inspectCalendarSelectedDayTasks();
+        }
+
+        function inspectCalendarSelectedDayTasks() {
+            const listContainer = document.getElementById('calendarDayTaskList');
+            const dateLabel = document.getElementById('focusedDateLabel');
+
+            const weekdayOptions = { weekday: 'short', month: 'short', day: 'numeric' };
+            dateLabel.textContent = selectedCalendarDate.toLocaleDateString('en-US', weekdayOptions);
+
+            const yearStr = selectedCalendarDate.getFullYear();
+            const monthStr = String(selectedCalendarDate.getMonth() + 1).padStart(2, '0');
+            const dayStr = String(selectedCalendarDate.getDate()).padStart(2, '0');
+            const formattedDate = `${yearStr}-${monthStr}-${dayStr}`;
+
+            // Filtering matches corresponding exactly to current date
+            const calendarSourceTasks = isOnline ? calendarTasksCache : localTasks;
+            const dayTasks = calendarSourceTasks.filter(t => t.date === formattedDate);
+
+            listContainer.innerHTML = '';
+
+            if (dayTasks.length === 0) {
+                listContainer.innerHTML = `<div class="no-tasks">No tasks scheduled for this day</div>`;
+                return;
+            }
+
+            dayTasks.sort((a, b) => a.time.localeCompare(b.time));
+
+            dayTasks.forEach(task => {
+                renderedTaskCache[task.id] = task;
+                const taskCard = document.createElement('div');
+                taskCard.className = `task-item ${task.status === 'completed' ? 'is-completed' : ''}`;
+                
+                taskCard.innerHTML = `
+                    <div class="task-left">
+                        <input type="checkbox" class="task-checkbox" ${task.status === 'completed' ? 'checked' : ''} onchange="toggleTaskStatus(${task.id}, '${task.status}')">
+                        <span class="task-title">${escapeHTML(task.title)}</span>
+                    </div>
+                    <div class="task-right">
+                        <span class="task-time">${formatTime(task.time)}</span>
+                        <div class="priority-dot ${task.priority}"></div>
+                        <button class="edit-task-btn" title="Edit task" onclick="openEditTaskModal(event, ${task.id})">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                        </button>
+                        <button class="delete-task-btn" title="Delete task" onclick="deleteTask(${task.id})">&times;</button>
+                    </div>
+                `;
+                listContainer.appendChild(taskCard);
+            });
+        }
+
+        // --- ACCOUNT SETTINGS COMPONENT POPULATION ---
+        function populateSettingsInputs() {
+            if (!currentUser) return;
+
+            // Split dynamic Full Name into First and Last Names automatically
+            const nameParts = currentUser.name.trim().split(/\s+/);
+            const firstName = nameParts[0] || '';
+            const lastName = nameParts.slice(1).join(' ') || '';
+
+            document.getElementById('settingsFirstName').value = firstName;
+            document.getElementById('settingsLastName').value = lastName;
+
+            // Pre-populate sidebar branding
+            document.getElementById('settingsSidebarName').innerHTML = `${currentUser.name} <span style="font-size: 11px; cursor: pointer; color: var(--accent-teal);">✎</span>`;
+
+            // Format proper fallback email dynamically
+            const sanitizeUser = currentUser.username.replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
+            document.getElementById('settingsEmail').value = `${sanitizeUser}@gmail.com`;
+
+            // Render Extra Connected Emails dynamically if present
+            renderExtraEmails();
+
+            // Set active settings language/region badges
+            document.getElementById('settingsActiveLangDesc').textContent = selectedLang;
+            document.getElementById('settingsActiveRegionDesc').textContent = selectedRegion;
+
+            // Update photo previews
+            const box = document.getElementById('settingsPicBox');
+            if (currentUser.avatarImg) {
+                box.style.backgroundImage = `url(${currentUser.avatarImg})`;
+                box.innerHTML = '';
+            } else {
+                box.style.backgroundImage = 'none';
+                box.style.backgroundColor = currentUser.avatarBg || '#F8F9FA';
+                box.innerHTML = `<span style="font-size:32px; font-weight:700; color:white;">${currentUser.name.charAt(0).toUpperCase()}</span>`;
+            }
+        }
+
+        function switchSettingsTab(tabName) {
+            // Deactivate all panes
+            document.querySelectorAll('.settings-content-pane').forEach(pane => pane.classList.remove('active'));
+            document.querySelectorAll('.settings-nav-item').forEach(item => item.classList.remove('active'));
+
+            // Activate chosen pane and sidebar item
+            document.getElementById(`settings-pane-${tabName}`).classList.add('active');
+            
+            // Match click selectors
+            const targetNavIndex = tabName === 'profile' ? 0 : tabName === 'password' ? 1 : 2;
+            document.querySelectorAll('.settings-nav-item')[targetNavIndex].classList.add('active');
+        }
+
+        function savePersonalDetails() {
+            const first = document.getElementById('settingsFirstName').value.trim();
+            const last = document.getElementById('settingsLastName').value.trim();
+
+            if (!first) {
+                showSystemToast("Name context requires at least a First Name.");
+                return;
+            }
+
+            currentUser.name = `${first} ${last}`.trim();
+            localStorage.setItem('vast_user', JSON.stringify(currentUser));
+
+            // Apply dynamic changes globally across UI
+            updateProfileUI();
+            populateSettingsInputs();
+            
+            showSystemToast("Personal profile details updated successfully!");
+            triggerVocalResponse("Profile saved successfully.");
+        }
+
+        function saveNewPassword() {
+            const currentPass = document.getElementById('settingsCurrentPassword').value;
+            const newPass = document.getElementById('settingsNewPassword').value;
+            const confirmPass = document.getElementById('settingsRetypePassword').value;
+
+            if (!currentPass || !newPass) {
+                showSystemToast("All password form groups are required.");
+                return;
+            }
+
+            if (newPass !== confirmPass) {
+                showSystemToast("Passwords mismatch! Retype confirmation.");
+                return;
+            }
+
+            showSystemToast("Credentials updated securely.");
+            document.getElementById('settingsCurrentPassword').value = '';
+            document.getElementById('settingsNewPassword').value = '';
+            document.getElementById('settingsRetypePassword').value = '';
+        }
+
+        // --- POPUP MODAL CONTROL ENGINE (NEW Figma Assets) ---
+        
+        // 1. Upload Photo Modal (`Upload photo.png`)
+        function openUploadPhotoModal() {
+            const modal = document.getElementById('uploadPhotoModal');
+            modal.classList.add('active');
+            
+            // Sync active preview color
+            activeAvatarBg = currentUser.avatarBg || "#E2E8F0";
+            activeAvatarImage = currentUser.avatarImg || "";
+            
+            updateAvatarPreviewInModal();
+            
+            // Select active preset border
+            document.querySelectorAll('.avatar-preset-btn').forEach(btn => {
+                const btnColor = rgb2hex(btn.style.backgroundColor).toUpperCase();
+                const activeHex = activeAvatarBg.toUpperCase();
+                if (btnColor === activeHex) {
+                    btn.classList.add('selected');
+                } else {
+                    btn.classList.remove('selected');
+                }
+            });
+        }
+
+        function closeUploadPhotoModal() {
+            document.getElementById('uploadPhotoModal').classList.remove('active');
+        }
+
+        function selectAvatarPreset(colorHex, imgBase64 = "") {
+            activeAvatarBg = colorHex;
+            activeAvatarImage = imgBase64;
+            
+            // Highlight selected
+            document.querySelectorAll('.avatar-preset-btn').forEach(btn => {
+                const btnColor = rgb2hex(btn.style.backgroundColor).toUpperCase();
+                if (btnColor === colorHex.toUpperCase()) {
+                    btn.classList.add('selected');
+                } else {
+                    btn.classList.remove('selected');
+                }
+            });
+            
+            updateAvatarPreviewInModal();
+        }
+
+        function handlePhotoFileSelected(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                activeAvatarImage = e.target.result;
+                activeAvatarBg = ""; // Reset background color to prefer image
+                updateAvatarPreviewInModal();
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function updateAvatarPreviewInModal() {
+            const preview = document.getElementById('avatarCirclePreview');
+            const initials = currentUser ? currentUser.name.charAt(0).toUpperCase() : "J";
+            
+            if (activeAvatarImage) {
+                preview.style.backgroundImage = `url(${activeAvatarImage})`;
+                preview.textContent = "";
+            } else {
+                preview.style.backgroundImage = "none";
+                preview.style.backgroundColor = activeAvatarBg;
+                preview.style.color = "white";
+                preview.textContent = initials;
+            }
+        }
+
+        function saveUploadPhoto() {
+            currentUser.avatarBg = activeAvatarBg;
+            currentUser.avatarImg = activeAvatarImage;
+            
+            localStorage.setItem('vast_user', JSON.stringify(currentUser));
+            updateProfileUI();
+            populateSettingsInputs();
+            closeUploadPhotoModal();
+            showSystemToast("Avatar profile picture updated successfully!");
+        }
+
+        // Helper: Convert RGB background back to Hex for comparison matches
+        function rgb2hex(rgb) {
+            if (/^#[0-9A-F]{6}$/i.test(rgb)) return rgb;
+            rgb = rgb.match(/^rgb\((\d+),\s*(\d+),\s*(\d+)\)$/);
+            function hex(x) {
+                return ("0" + parseInt(x).toString(16)).slice(-2);
+            }
+            return rgb ? "#" + hex(rgb[1]) + hex(rgb[2]) + hex(rgb[3]) : rgb;
+        }
+
+        // 2. Add Email Modal (`Add email account.png`)
+        function openAddEmailModal() {
+            document.getElementById('addEmailModal').classList.add('active');
+            document.getElementById('modalAddEmail').value = '';
+            document.getElementById('modalAddPassword').value = '';
+        }
+
+        function closeAddEmailModal() {
+            document.getElementById('addEmailModal').classList.remove('active');
+        }
+
+        function handleAddEmailSubmit(event) {
+            event.preventDefault();
+            const newEmail = document.getElementById('modalAddEmail').value.trim();
+            
+            if (extraEmails.includes(newEmail) || newEmail === document.getElementById('settingsEmail').value) {
+                showSystemToast("Account email is already connected.");
+                return;
+            }
+
+            extraEmails.push(newEmail);
+            saveLocalDatabase();
+            renderExtraEmails();
+            closeAddEmailModal();
+            showSystemToast(`Successfully added account: ${newEmail}`);
+        }
+
+        // Render connected emails dynamically
+        function renderExtraEmails() {
+            const container = document.getElementById('additionalEmailsContainer');
+            container.innerHTML = '';
+            
+            extraEmails.forEach((em, index) => {
+                const group = document.createElement('div');
+                group.className = 'auth-form-group';
+                group.style.marginTop = '10px';
+                group.innerHTML = `
+                    <label>Secondary Account #${index + 1}</label>
+                    <div style="display:flex; gap:8px; align-items:center;">
+                        <input type="email" class="auth-input" value="${em}" readonly style="margin-bottom:0; flex-grow:1;">
+                        <button class="delete-task-btn" style="background:#FEE2E2; color:#B91C1C; height:44px; width:44px; border-radius:12px;" onclick="removeSecondaryEmail(${index})">&times;</button>
+                    </div>
+                `;
+                container.appendChild(group);
+            });
+        }
+
+        function removeSecondaryEmail(index) {
+            const removed = extraEmails.splice(index, 1);
+            saveLocalDatabase();
+            renderExtraEmails();
+            showSystemToast(`Removed secondary account: ${removed}`);
+        }
+
+        function deleteEmailAccount() {
+            if (confirm("Are you sure you want to delete your VAST account permanently? All tasks and settings will be lost.")) {
+                localStorage.clear();
+                currentUser = null;
+                applySessionLogout();
+                showSystemToast("Account deleted. Re-routing back to registration.");
+            }
+        }
+
+        // 3. Language Selection Modal (`Select language.png`)
+        function openLanguageModal() {
+            document.getElementById('languageModal').classList.add('active');
+            document.getElementById('langSearchInput').value = '';
+            renderLanguagesList(languagesData);
+        }
+
+        function closeLanguageModal() {
+            document.getElementById('languageModal').classList.remove('active');
+        }
+
+        function renderLanguagesList(dataList) {
+            const container = document.getElementById('languageListContainer');
+            container.innerHTML = '';
+            
+            dataList.forEach(item => {
+                const isSelected = item.name === selectedLang;
+                const div = document.createElement('div');
+                div.className = `popup-list-item ${isSelected ? 'selected' : ''}`;
+                div.onclick = () => {
+                    selectAppLanguage(item.name);
+                };
+                
+                div.innerHTML = `
+                    <div>
+                        <h4 style="font-size:14px; font-weight:600; color:var(--text-main);">${item.name}</h4>
+                        ${item.sub ? `<p style="font-size:11px; color:var(--text-muted); margin-top:2px;">${item.sub}</p>` : ''}
+                    </div>
+                    <div class="popup-radio-dot"></div>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        // Filter language matches dynamically
+        function filterLanguages() {
+            const q = document.getElementById('langSearchInput').value.toLowerCase();
+            const filtered = languagesData.filter(l => 
+                l.name.toLowerCase().includes(q) || (l.sub && l.sub.toLowerCase().includes(q))
+            );
+            renderLanguagesList(filtered);
+        }
+
+        // 4. Region Selection Modal (`Region and format.png`)
+        function openRegionModal() {
+            document.getElementById('regionModal').classList.add('active');
+            document.getElementById('regionSearchInput').value = '';
+            renderRegionsList(regionsData);
+        }
+
+        function closeRegionModal() {
+            document.getElementById('regionModal').classList.remove('active');
+        }
+
+        function renderRegionsList(dataList) {
+            const container = document.getElementById('regionListContainer');
+            container.innerHTML = '';
+            
+            dataList.forEach(item => {
+                const isSelected = item.name === selectedRegion;
+                const div = document.createElement('div');
+                div.className = `popup-list-item ${isSelected ? 'selected' : ''}`;
+                div.onclick = () => {
+                    selectAppRegion(item.name);
+                };
+                
+                div.innerHTML = `
+                    <div>
+                        <h4 style="font-size:14px; font-weight:600; color:var(--text-main);">${item.name}</h4>
+                        <p style="font-size:11px; color:var(--text-muted); margin-top:2px;">${item.sub}</p>
+                    </div>
+                    <div class="popup-radio-dot"></div>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        function selectAppRegion(regionName) {
+            selectedRegion = regionName;
+            populateSettingsInputs();
+            closeRegionModal();
+            showSystemToast(`Region format calibrated to: ${regionName}`);
+        }
+
+        // Filter regions dynamically
+        function filterRegions() {
+            const q = document.getElementById('regionSearchInput').value.toLowerCase();
+            const filtered = regionsData.filter(r => 
+                r.name.toLowerCase().includes(q) || r.sub.toLowerCase().includes(q)
+            );
+            renderRegionsList(filtered);
+        }
+
+        // --- OVERLAYS AND HEADER ACTIONS ---
+        function closeAllHeaderPopups() {
+            notifDropdown.classList.remove('open');
+            profileDropdown.classList.remove('open');
+            bellBtn.classList.remove('active-badge');
+            profileBtn.classList.remove('active-badge');
+        }
+
+        bellBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const isOpen = notifDropdown.classList.toggle('open');
+            profileDropdown.classList.remove('open');
+            profileBtn.classList.remove('active-badge');
+            bellBtn.classList.toggle('active-badge', isOpen);
+            if (isOpen) renderNotifications();
+        });
+
+        profileBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const isOpen = profileDropdown.classList.toggle('open');
+            notifDropdown.classList.remove('open');
+            bellBtn.classList.remove('active-badge');
+            profileBtn.classList.toggle('active-badge', isOpen);
+        });
+
+        document.addEventListener('click', () => {
+            closeAllHeaderPopups();
+        });
+
+        // Prevention inside popup propagation bounds
+        notifDropdown.addEventListener('click', (e) => e.stopPropagation());
+        profileDropdown.addEventListener('click', (e) => e.stopPropagation());
+
+        function renderNotifications() {
+            const container = document.getElementById('notifList');
+            container.innerHTML = '';
+            
+            if (localNotifications.length === 0) {
+                container.innerHTML = '<div class="no-tasks" style="padding: 20px 0;">No new notifications</div>';
+                document.getElementById('notifBadge').style.display = 'none';
+                return;
+            }
+
+            document.getElementById('notifBadge').style.display = 'block';
+
+            localNotifications.forEach(notif => {
+                const item = document.createElement('div');
+                item.className = `notif-item ${notif.type || ''}`;
+                item.innerHTML = `
+                    <div class="notif-title">${escapeHTML(notif.title)}</div>
+                    <div class="notif-desc">${escapeHTML(notif.desc)}</div>
+                    <div class="notif-time">${notif.time}</div>
+                `;
+                container.appendChild(item);
+            });
+        }
+
+        function clearNotifications() {
+            localNotifications = [];
+            saveLocalDatabase();
+            renderNotifications();
+            showSystemToast("All notifications cleared.");
+        }
+
+        function addSystemNotification(title, desc, time = "Just now", type = "upcoming") {
+            localNotifications.unshift({
+                id: Date.now(),
+                title,
+                desc,
+                time,
+                type
+            });
+            saveLocalDatabase();
+            renderNotifications();
+        }
+
+        // --- NAVIGATION PANEL ROUTER ---
+        async function navigateTo(panelName) {
+            dashboardPanel.classList.remove('active');
+            calendarPanel.classList.remove('active');
+            document.getElementById('settings-panel').classList.remove('active');
+            
+            document.getElementById('navHome').classList.remove('active');
+            document.getElementById('navCalendar').classList.remove('active');
+
+            closeAllHeaderPopups();
+
+            if (panelName === 'dashboard') {
+                dashboardPanel.classList.add('active');
+                document.getElementById('navHome').classList.add('active');
+                fetchDashboardData();
+            } else if (panelName === 'calendar') {
+                calendarPanel.classList.add('active');
+                document.getElementById('navCalendar').classList.add('active');
+                await fetchDashboardData();
+                renderCalendarMatrix();
+                inspectCalendarSelectedDayTasks();
+            } else if (panelName === 'settings') {
+                document.getElementById('settings-panel').classList.add('active');
+                populateSettingsInputs();
+                switchSettingsTab('profile');
+            }
+        }
+
+        // --- INTERACTIVE WEB SPEECH & INTELLIGENT PARSER ---
+        function initVoiceRecognition() {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            
+            if (!SpeechRecognition) {
+                console.warn("Natively hosted Speech Recognition engines absent. Loading Simulated Voice Interface.");
+                micBtn.addEventListener('click', () => {
+                    simulateVocalPrompt();
+                });
+                return;
+            }
+
+            const recognition = new SpeechRecognition();
+            recognition.continuous = true;
+            recognition.lang = 'en-US';
+            recognition.interimResults = true;
+
+            let finalTranscript = '';
+            let shouldKeepListening = false;
+            let submitTimer = null;
+
+            function queueVoiceSubmit(delay = 2200) {
+                clearTimeout(submitTimer);
+                submitTimer = setTimeout(() => {
+                    processCapturedSpeech(finalTranscript.trim());
+                }, delay);
+            }
+
+            micBtn.addEventListener('click', () => {
+                if (micBtn.classList.contains('listening')) {
+                    shouldKeepListening = false;
+                    processCapturedSpeech(finalTranscript.trim());
+                } else {
+                    finalTranscript = '';
+                    shouldKeepListening = true;
+                    try {
+                        recognition.start();
+                    } catch (e) {
+                        showSystemToast("Voice Engine busy, retry shortly.");
+                    }
+                }
+            });
+
+            recognition.onstart = () => {
+                micBtn.classList.add('listening');
+                voiceToast.style.display = "block";
+                triggerVocalResponse("Speak now, I'm listening.");
+            };
+
+            recognition.onend = () => {
+                if (shouldKeepListening) {
+                    try {
+                        recognition.start();
+                    } catch (e) {
+                        console.warn("Speech restart skipped:", e);
+                    }
+                    return;
+                }
+                micBtn.classList.remove('listening');
+                voiceToast.style.display = "none";
+            };
+
+            recognition.onerror = (event) => {
+                console.error("Vocal engine capture error: ", event.error);
+                shouldKeepListening = false;
+                clearTimeout(submitTimer);
+                micBtn.classList.remove('listening');
+                voiceToast.style.display = "none";
+                showSystemToast("Vocal error captured: " + event.error);
+            };
+
+            recognition.onresult = (event) => {
+                for (let i = event.resultIndex; i < event.results.length; i++) {
+                    const transcriptPart = event.results[i][0].transcript.trim();
+                    if (event.results[i].isFinal && transcriptPart) {
+                        finalTranscript = `${finalTranscript} ${transcriptPart}`.trim();
+                    }
+                }
+                queueVoiceSubmit();
+            };
+        }
+
+        // --- INTELLIGENT VOCAL NATURAL LANGUAGE PARSING ENGINE ---
+        async function processCapturedSpeech(phrase) {
+            if (!phrase) return;
+            console.log("Processing captured phrase:", phrase);
+            showSystemToast(`Heard: "${phrase}"`);
+
+            try {
+                const response = await fetch(ENDPOINTS.voice, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ transcript: phrase })
+                });
+
+                if (!response.ok) {
+                    const errorBody = await response.json().catch(() => ({}));
+                    showSystemToast(`Voice task failed: ${formatApiError(errorBody)}`);
+                    return;
+                }
+
+                const task = await response.json();
+                renderedTaskCache[task.id] = task;
+                showSystemToast(`Successfully parsed Voice Task: "${task.title}"`);
+                triggerVocalResponse(`Task added: ${task.title}`);
+                navigateTo('dashboard');
+            } catch (err) {
+                console.error("Voice task backend request failed:", err);
+                showSystemToast("Voice task failed. Check if Django is running.");
+            }
+        }
+
+        // Voice simulator fallback for non-Chrome platforms
+        function simulateVocalPrompt() {
+            const mockCommand = prompt(
+                "V.A.S.T. Vocal Command Interface Sandbox Simulator:\n\n" +
+                "Try typing vocal statements like:\n" +
+                "• 'Add math quiz tomorrow at 03:00 PM priority high'\n" +
+                "• 'Add buy milk today at 08:30 AM'\n" +
+                "• 'Add presentation on May 18 at 01:00 PM'"
+            );
+            if (mockCommand) {
+                processCapturedSpeech(mockCommand);
+            }
+        }
+
+        // Custom SpeechSynthesis utility
+        function triggerVocalResponse(phrase) {
+            if ('speechSynthesis' in window) {
+                window.speechSynthesis.cancel();
+                const utterance = new SpeechSynthesisUtterance(phrase);
+                utterance.pitch = 1.0;
+                utterance.rate = 1.0;
+                window.speechSynthesis.speak(utterance);
+            }
+        }
+
+        // --- INTERACTION UTILITY HELPERS ---
+        function toggleModal(show) {
+            taskModal.classList.toggle('active', show);
+        }
+
+        openModalBtn.addEventListener('click', () => toggleModal(true));
+        closeModalBtn.addEventListener('click', () => toggleModal(false));
+        taskModal.addEventListener('click', (e) => {
+            if (e.target === taskModal) toggleModal(false);
+        });
+
+        function showSystemToast(message) {
+            systemAlert.textContent = message;
+            systemAlert.style.display = 'flex';
+            setTimeout(() => {
+                systemAlert.style.display = 'none';
+            }, 3500);
+        }
+
+        // Time format utility
+        function formatTime(timeString) {
+            if (!timeString) return '';
+            const [hours, minutes] = timeString.split(':');
+            let hourInt = parseInt(hours, 10);
+            const ampm = hourInt >= 12 ? 'PM' : 'AM';
+            hourInt = hourInt % 12 || 12;
+            return `${String(hourInt).padStart(2, '0')}:${minutes} ${ampm}`;
+        }
+
+        function formatShortDate(dateStr) {
+            const dateObj = new Date(dateStr);
+            const options = { month: 'short', day: 'numeric' };
+            return dateObj.toLocaleDateString('en-US', options);
+        }
+
+        function getTodayDateString() {
+            const today = new Date();
+            const year = today.getFullYear();
+            const month = String(today.getMonth() + 1).padStart(2, '0');
+            const day = String(today.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        }
+
+        function normalizeTimeForInput(timeString) {
+            if (!timeString) return "09:00";
+            return timeString.slice(0, 5);
+        }
+
+        // Prevent injection vulnerabilities
+        function escapeHTML(str) {
+            return str.replace(/[&<>'"]/g, tag => ({
+                '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
+            }[tag] || tag));
+        }
+
+        function formatApiError(errorBody) {
+            if (errorBody.error) {
+                return errorBody.error;
+            }
+
+            return Object.entries(errorBody)
+                .map(([field, messages]) => `${field}: ${Array.isArray(messages) ? messages.join(', ') : messages}`)
+                .join('\n') || 'Request failed. Check the browser console.';
+        }
+    </script>
+</body>
+</html>
