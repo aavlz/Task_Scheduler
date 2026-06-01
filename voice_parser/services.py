@@ -190,6 +190,7 @@ class VoiceCommandService:
     def parse_task_payload(self, transcript):
         text = transcript.lower().strip()
         now = timezone.localtime(timezone.now())
+        text = self._normalize_voice_text(text)
 
         # Priority detection (supports 'high', 'medium', 'low')
         priority = 'medium'
@@ -244,8 +245,14 @@ class VoiceCommandService:
                     flags=re.IGNORECASE,
                 ).strip()
             else:
-                # Try to parse explicit date phrases like 'on April 5' or 'April 5, 2026'
-                date_match = re.search(r'(?:on\s+)?(\w+\s+\d{1,2}(?:,?\s*\d{4})?)', text)
+                # Try to parse explicit date phrases like 'on April 5' or 'April 5, 2026'.
+                date_match = re.search(
+                    r'(?:on\s+)?'
+                    r'((?:january|february|march|april|may|june|july|august|september|october|november|december)'
+                    r'\s+\d{1,2}(?:,?\s*\d{4})?)',
+                    text,
+                    re.IGNORECASE,
+                )
                 if date_match:
                     try:
                         parsed_date = date_parser.parse(date_match.group(1), fuzzy=True)
@@ -305,7 +312,7 @@ class VoiceCommandService:
 
         # Title cleanup
         title = re.sub(
-            r"\b(add|create|schedule|set|remind|me|to|a|an|the|at|on|today|tomorrow|am|pm|"
+            r"\b(add|create|schedule|set|remind|me|to|a|an|the|at|by|before|around|on|today|tomorrow|am|pm|a\.m\.|p\.m\.|"
             r"category|under|school|work|personal|others|other|"
             r"gawa|gumawa|dagdag|idagdag|magdagdag|paalala|ng|sa|ako|bukas|ngayon|mamaya|"
             r"para|kategorya|prayoridad|mataas|katamtaman|mababa|importante|"
@@ -313,6 +320,8 @@ class VoiceCommandService:
             '',
             text,
         )
+        title = re.sub(r'\b\d{1,2}(?::\d{2})?\s*(?:am|pm|a\.m\.|p\.m\.)?\b', '', title)
+        title = re.sub(r'\b(?:june|july|august|september|october|november|december|january|february|march|april|may)\s+\d{1,2}\b', '', title)
         title = re.sub(r'\s+', ' ', title).strip(' :')
 
         return {
@@ -323,6 +332,19 @@ class VoiceCommandService:
             'status': 'pending',
             'category_label': category_label,
         }
+
+    def _normalize_voice_text(self, text):
+        replacements = {
+            'a.m.': 'am',
+            'p.m.': 'pm',
+            ' a m': ' am',
+            ' p m': ' pm',
+            ' by ': ' at ',
+        }
+        normalized = f' {text} '
+        for wrong, right in replacements.items():
+            normalized = normalized.replace(wrong, right)
+        return re.sub(r'\s+', ' ', normalized).strip()
 
     def _extract_category(self, text):
         for word in ['school', 'paaralan', 'eskwela', 'skwela', 'klase', 'work', 'trabaho', 'opisina', 'personal', 'sarili', 'pansarili', 'others', 'other', 'iba', 'iba pa']:

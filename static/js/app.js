@@ -1525,9 +1525,22 @@ async function savePersonalDetails() {
 
             const errorBody = await response.json().catch(() => ({}));
             console.warn('Profile update failed', errorBody);
-            showSystemToast("Unable to save profile details to the server. Saved locally.");
+            const verifiedProfile = await fetchUserProfile();
+            if (verifiedProfile?.username === username) {
+                showSystemToast("Username updated successfully.");
+                triggerVocalResponse("Profile saved successfully.");
+                return;
+            }
+            showSystemToast(`Unable to save profile details: ${formatApiError(errorBody)}`);
+            return;
         } catch (err) {
             console.error('Profile update error', err);
+            const verifiedProfile = await fetchUserProfile();
+            if (verifiedProfile?.username === username) {
+                showSystemToast("Username updated successfully.");
+                triggerVocalResponse("Profile saved successfully.");
+                return;
+            }
             showSystemToast("Unable to save profile details to the server. Saved locally.");
         }
     }
@@ -1795,9 +1808,26 @@ async function saveUploadPhoto() {
 
             const errorBody = await response.json().catch(() => ({}));
             console.warn('Avatar save failed', errorBody);
-            showSystemToast("Unable to save avatar to the server. Saved locally.");
+            const verifiedProfile = await fetchUserProfile();
+            const savedColor = verifiedProfile?.avatar_bg_color === (activeAvatarBg || currentUser?.avatarBg || '#338A85');
+            const savedImage = !!selectedAvatarFile && !!verifiedProfile?.avatar_image;
+            if (savedColor || savedImage) {
+                closeUploadPhotoModal();
+                showSystemToast("Avatar profile picture updated successfully!");
+                return;
+            }
+            showSystemToast(`Unable to save avatar: ${formatApiError(errorBody)}`);
+            return;
         } catch (err) {
             console.error('Avatar save error', err);
+            const verifiedProfile = await fetchUserProfile();
+            const savedColor = verifiedProfile?.avatar_bg_color === (activeAvatarBg || currentUser?.avatarBg || '#338A85');
+            const savedImage = !!selectedAvatarFile && !!verifiedProfile?.avatar_image;
+            if (savedColor || savedImage) {
+                closeUploadPhotoModal();
+                showSystemToast("Avatar profile picture updated successfully!");
+                return;
+            }
             showSystemToast("Unable to save avatar to the server. Saved locally.");
         }
     }
@@ -2331,6 +2361,9 @@ function initVoiceRecognition() {
     let submitTimer = null;
     let isRecognitionRunning = false;
     let lastUpdateTime = Date.now();
+    let isSubmittingVoice = false;
+    let lastSubmittedVoice = '';
+    let lastSubmittedAt = 0;
 
     function computeAdaptiveDelay() {
         // Base minimum to avoid premature submit, scale with word count
@@ -2344,7 +2377,7 @@ function initVoiceRecognition() {
         const useDelay = delay || computeAdaptiveDelay();
         submitTimer = setTimeout(() => {
             shouldKeepListening = false;
-            processCapturedSpeech(finalTranscript.trim());
+            submitCapturedSpeechOnce();
             if (isRecognitionRunning) {
                 try {
                     recognition.stop();
@@ -2358,7 +2391,7 @@ function initVoiceRecognition() {
     micBtn.addEventListener('click', () => {
         if (micBtn.classList.contains('listening')) {
             shouldKeepListening = false;
-            processCapturedSpeech(finalTranscript.trim());
+            submitCapturedSpeechOnce();
             if (isRecognitionRunning) {
                 try {
                     recognition.stop();
@@ -2368,6 +2401,7 @@ function initVoiceRecognition() {
             }
         } else {
             finalTranscript = '';
+            isSubmittingVoice = false;
             shouldKeepListening = true;
             if (!isRecognitionRunning) {
                 try {
@@ -2410,6 +2444,26 @@ function initVoiceRecognition() {
         voiceToast.style.display = "none";
         showSystemToast("Vocal error captured: " + event.error);
     };
+
+    async function submitCapturedSpeechOnce() {
+        const phrase = finalTranscript.trim();
+        if (!phrase || isSubmittingVoice) return;
+
+        const normalized = phrase.toLowerCase().replace(/\s+/g, ' ');
+        const now = Date.now();
+        if (normalized === lastSubmittedVoice && now - lastSubmittedAt < 8000) return;
+
+        isSubmittingVoice = true;
+        lastSubmittedVoice = normalized;
+        lastSubmittedAt = now;
+        clearTimeout(submitTimer);
+        try {
+            await processCapturedSpeech(phrase);
+        } finally {
+            finalTranscript = '';
+            isSubmittingVoice = false;
+        }
+    }
 
     recognition.onresult = (event) => {
         let updated = false;
