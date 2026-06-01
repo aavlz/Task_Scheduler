@@ -24,6 +24,9 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/accounts/', include('accounts.urls')),
     path('api/', include('tasks.urls')),
+    path('api/voice/', include('voice_parser.urls')),
+    path('api/ai/', include('ai_tools.urls')),
+    path('api/tools/', include('mcp_integration.urls')),
 
     # Serve the frontend SPA
     path('', TemplateView.as_view(template_name='index.html'), name='home'),

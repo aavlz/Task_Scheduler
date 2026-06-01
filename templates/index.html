@@ -12,11 +12,7 @@
         <!-- Add CSRF token for API calls -->
         {% csrf_token %}
         
-        <!-- CONNECTIVITY HANDSHAKE STATE BANNER -->
-        <div class="network-banner" id="networkBanner">
-            <div class="network-dot"></div>
-            <span id="networkText">Checking connectivity pipeline...</span>
-        </div>
+
 
         <!-- 1. AUTH SCREEN VIEW (PAGE WRAPPER) -->
         <div id="auth-page-wrapper">
@@ -33,31 +29,84 @@
                 
                 <form id="authForm" onsubmit="handleAuthSubmit(event)">
                     <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
-                    <div id="nameFieldsGroup" style="display: none;">
-                        <div class="auth-form-group">
-                            <label for="authFirstName">First Name</label>
-                            <input type="text" id="authFirstName" class="auth-input" placeholder="Enter your first name">
-                        </div>
-                        <div class="auth-form-group">
-                            <label for="authLastName">Last Name</label>
-                            <input type="text" id="authLastName" class="auth-input" placeholder="Enter your last name (optional)">
-                        </div>
-                    </div>
                     <div class="auth-form-group">
-                        <label for="authUsername">Username or Email</label>
-                        <input type="text" id="authUsername" class="auth-input" placeholder="Enter your username or email" required>
+                        <label for="authUsername">Email</label>
+                        <input type="email" id="authUsername" class="auth-input" placeholder="Enter your email" required>
                     </div>
                     <div class="auth-form-group">
                         <label for="authPassword">Password</label>
-                        <input type="password" id="authPassword" class="auth-input" placeholder="Enter your password" required>
+                        <div class="password-field">
+                            <input type="password" id="authPassword" class="auth-input" placeholder="Enter your password" required oninput="updatePasswordRequirements()">
+                            <button type="button" class="password-toggle" onclick="togglePasswordVisibility('authPassword', this)" aria-label="Show password">👁</button>
+                        </div>
+                        <ul class="password-checklist" id="passwordChecklist" style="display:none;">
+                            <li data-rule="length">At least 8 characters</li>
+                            <li data-rule="upper">One uppercase letter</li>
+                            <li data-rule="lower">One lowercase letter</li>
+                            <li data-rule="number">One number</li>
+                            <li data-rule="special">One special character</li>
+                        </ul>
                     </div>
                     <button type="submit" class="auth-btn" id="authSubmitBtn">Confirm Log In</button>
                     <div class="auth-error" id="authError" role="alert" aria-live="polite"></div>
                 </form>
 
+                <div id="passwordResetRequestPanel" style="display:none;">
+                    <h2 style="font-size:20px; color:var(--text-main); margin-bottom:8px;">Reset password</h2>
+                    <p style="font-size:13px; color:var(--text-muted); line-height:1.5; margin-bottom:16px;">Enter your email and we will send a secure reset link.</p>
+                    <div class="auth-form-group">
+                        <label for="resetRequestEmail">Email</label>
+                        <input type="email" id="resetRequestEmail" class="auth-input" placeholder="Enter your email">
+                    </div>
+                    <button type="button" class="auth-btn" onclick="submitPasswordResetRequest()">Send Reset Link</button>
+                    <button type="button" class="auth-btn" style="background:#E2E8F0; color:var(--text-main);" onclick="closePasswordResetPanels()">Back</button>
+                </div>
+
+                <div id="passwordResetConfirmPanel" style="display:none;">
+                    <h2 style="font-size:20px; color:var(--text-main); margin-bottom:8px;">Set new password</h2>
+                    <p style="font-size:13px; color:var(--text-muted); line-height:1.5; margin-bottom:16px;">Create a new password that meets all requirements.</p>
+                    <div class="auth-form-group">
+                        <label for="resetNewPassword">New password</label>
+                        <div class="password-field">
+                            <input type="password" id="resetNewPassword" class="auth-input" placeholder="Enter new password" oninput="updateResetPasswordRequirements()">
+                            <button type="button" class="password-toggle" onclick="togglePasswordVisibility('resetNewPassword', this)" aria-label="Show password">ðŸ‘</button>
+                        </div>
+                        <ul class="password-checklist" id="resetPasswordChecklist">
+                            <li data-rule="length">At least 8 characters</li>
+                            <li data-rule="upper">One uppercase letter</li>
+                            <li data-rule="lower">One lowercase letter</li>
+                            <li data-rule="number">One number</li>
+                            <li data-rule="special">One special character</li>
+                        </ul>
+                    </div>
+                    <div class="auth-form-group">
+                        <label for="resetConfirmPassword">Re-type new password</label>
+                        <div class="password-field">
+                            <input type="password" id="resetConfirmPassword" class="auth-input" placeholder="Re-type new password">
+                            <button type="button" class="password-toggle" onclick="togglePasswordVisibility('resetConfirmPassword', this)" aria-label="Show password">ðŸ‘</button>
+                        </div>
+                    </div>
+                    <button type="button" class="auth-btn" onclick="submitPasswordResetConfirm()">Update Password</button>
+                </div>
+
+                <div id="verificationPanel" style="display:none;">
+                    <h2 style="font-size:20px; color:var(--text-main); margin-bottom:8px;">Verify your email</h2>
+                    <p style="font-size:13px; color:var(--text-muted); line-height:1.5; margin-bottom:16px;">Enter the 6-digit code sent from no-reply email. The code expires in 5 minutes.</p>
+                    <p style="font-size:12px; color:var(--text-muted); line-height:1.5; margin-bottom:16px;">Didn't receive the code? Check your Spam or Promotions folder. The email may take up to 1 minute to arrive.</p>
+                    <div class="auth-form-group">
+                        <label for="verifyAccountCode">Verification code</label>
+                        <input type="text" id="verifyAccountCode" class="auth-input" maxlength="6" inputmode="numeric" placeholder="123456">
+                    </div>
+                    <button type="button" class="auth-btn" onclick="submitAccountVerification()">Verify Account</button>
+                    <button type="button" class="auth-btn" style="background:#E2E8F0; color:var(--text-main);" onclick="closeVerifyAccountModal()">Back</button>
+                </div>
+
                 <div class="auth-toggle">
                     <span id="authToggleText">Don't have an account yet?</span>
                     <a id="toggleAuthMode" onclick="toggleAuthMode()">Create an Account</a>
+                    <div style="margin-top:8px;">
+                        <a onclick="openPasswordResetRequest()">Forgot password?</a>
+                    </div>
                 </div>
             </div>
         </div>
@@ -74,7 +123,7 @@
                     </svg>
                     <div>
                         <h1>V.A.S.T.</h1>
-                        <div class="brand-subtitle">Voice-Assisted Tasks</div>
+                        <div class="brand-subtitle">Voice-Assisted Scheduling & Tasks</div>
                     </div>
                 </div>
                 <div class="header-actions">
@@ -145,6 +194,18 @@
                         </div>
                     </section>
 
+                    <section class="ai-section">
+                        <div>
+                            <h2>AI Assistant</h2>
+                            <p id="aiResultPanel" class="ai-result-panel">Run a summary or open the guide for voice-assisted scheduling tips.</p>
+                        </div>
+                        <div class="ai-action-row">
+                            <button type="button" class="ai-action-btn" id="aiSummaryBtn">Summary</button>
+                            <button type="button" class="ai-action-btn" id="howToBtn">How To</button>
+                        </div>
+                        <button type="button" class="ai-collapse-btn" id="aiCollapseBtn">Collapse</button>
+                    </section>
+
                     <div class="tasks-layout">
                         <div>
                             <h2><span id="todayHeaderLabel">Today's Tasks</span> <span style="font-size:12px; font-weight:normal;" id="filterTextToday"></span></h2>
@@ -172,7 +233,6 @@
                                     <select id="calendarMonthSelect" class="calendar-select"></select>
                                     <label for="calendarYearSelect" style="display:none;">Year</label>
                                     <select id="calendarYearSelect" class="calendar-select"></select>
-                                    <span class="calendar-month-label" id="calendarMonthLabel" style="margin-left:8px;">&nbsp;</span>
                                     <button class="cal-arrow" onclick="changeMonth(1)">›</button>
                                 </div>
                             </div>
@@ -195,7 +255,8 @@
                         <aside class="settings-sidebar">
                             <div class="settings-sidebar-profile">
                                 <div class="settings-sidebar-avatar" id="settingsSidebarAvatarLetter">J</div>
-                                <h3 class="settings-sidebar-name" id="settingsSidebarName">Jei Mii <span>✎</span></h3>
+                                <h3 class="settings-sidebar-name" id="settingsSidebarName">Username</h3>
+                                <button type="button" class="edit-username-icon-btn" title="Edit username" aria-label="Edit username" onclick="focusUsernameEdit()">&#9998;</button>
                             </div>
                             <nav class="settings-nav">
                                 <div class="settings-nav-item active" onclick="switchSettingsTab('profile')">
@@ -210,6 +271,10 @@
                                     <span>Language & Region</span>
                                     <span>›</span>
                                 </div>
+                                <div class="settings-nav-item" onclick="switchSettingsTab('notifications')">
+                                    <span>Notification Settings</span>
+                                    <span>›</span>
+                                </div>
                             </nav>
                         </aside>
 
@@ -220,24 +285,19 @@
                             <div class="settings-content-pane active" id="settings-pane-profile">
                                 <div class="settings-card">
                                     <h3>Profile Picture</h3>
-                                    <div class="profile-pic-box" id="settingsPicBox" onclick="openUploadPhotoModal()">
-                                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#617D8A" stroke-width="2">
-                                            <line x1="12" y1="5" x2="12" y2="19"></line>
-                                            <line x1="5" y1="12" x2="19" y2="12"></line>
-                                        </svg>
-                                    </div>
-                                    <button class="auth-btn" style="width: auto; padding: 10px 20px; font-size: 13px; margin-left: auto; display: block;" onclick="openUploadPhotoModal()">Upload photo</button>
+                                    <div class="profile-pic-box" id="settingsPicBox" onclick="openUploadPhotoModal()"></div>
+                                    <button class="auth-btn" style="width:auto; padding:10px 18px; font-size:13px; margin-left:auto; display:block;" onclick="openUploadPhotoModal()">Change photo or color</button>
                                 </div>
                                 
                                 <div class="settings-card">
-                                    <h3>Name</h3>
+                                    <h3>Username</h3>
                                     <div class="auth-form-group">
-                                        <label>First Name</label>
-                                        <input type="text" id="settingsFirstName" class="auth-input">
+                                        <label>Username</label>
+                                        <input type="text" id="settingsUsername" class="auth-input">
                                     </div>
                                     <div class="auth-form-group">
-                                        <label>Last Name</label>
-                                        <input type="text" id="settingsLastName" class="auth-input">
+                                        <label>Email</label>
+                                        <input type="email" id="settingsEmail" class="auth-input" disabled>
                                     </div>
                                     <button class="auth-btn" style="width: auto; padding: 10px 20px; font-size: 13px; margin-left: auto; display: block;" onclick="savePersonalDetails()">Save changes</button>
                                 </div>
@@ -249,12 +309,12 @@
                                     <h3>Email</h3>
                                     <div class="auth-form-group">
                                         <label>Current email</label>
-                                        <input type="email" id="settingsEmail" class="auth-input">
+                                        <input type="email" id="settingsEmailReadOnly" class="auth-input" disabled>
                                     </div>
-                                    <button class="auth-btn" style="width: auto; padding: 10px 20px; font-size: 13px; margin-left: auto; display: block;" onclick="saveEmailChanges()">Save email</button>
+                                    <button class="auth-btn" style="width: auto; padding: 10px 20px; font-size: 13px; margin-left: auto; display: block;" onclick="openChangeEmailModal()">Change Email</button>
                                     
-                                    <div style="display: flex; justify-content: flex-end; align-items: center; margin-top: 12px;">
-                                        <a style="font-size: 13px; font-weight:600; color:#B91C1C; cursor:pointer;" onclick="deleteEmailAccount()">Delete Account</a>
+                                    <div style="display: flex; justify-content: flex-start; align-items: center; margin-top: 12px;">
+                                        <a style="font-size: 13px; font-weight:600; color:#B91C1C; cursor:pointer;" onclick="openDeleteAccountModal()">Delete Account</a>
                                     </div>
                                 </div>
 
@@ -262,41 +322,67 @@
                                     <h3>Password</h3>
                                     <div class="auth-form-group">
                                         <label>Current password</label>
-                                        <input type="password" id="settingsCurrentPassword" class="auth-input" placeholder="••••••••">
+                                            <div class="password-field">
+                                                <input type="password" id="settingsCurrentPassword" class="auth-input" placeholder="••••••••">
+                                                <button type="button" class="password-toggle" onclick="togglePasswordVisibility('settingsCurrentPassword', this)" aria-label="Show password">👁</button>
+                                            </div>
                                     </div>
                                     <div class="auth-form-group">
                                         <label>New password</label>
-                                        <input type="password" id="settingsNewPassword" class="auth-input" placeholder="••••••••">
+                                            <div class="password-field">
+                                                <input type="password" id="settingsNewPassword" class="auth-input" placeholder="••••••••">
+                                                <button type="button" class="password-toggle" onclick="togglePasswordVisibility('settingsNewPassword', this)" aria-label="Show password">👁</button>
+                                            </div>
                                     </div>
                                     <div class="auth-form-group">
                                         <label>Re-type new password</label>
-                                        <input type="password" id="settingsRetypePassword" class="auth-input" placeholder="••••••••">
+                                            <div class="password-field">
+                                                <input type="password" id="settingsRetypePassword" class="auth-input" placeholder="••••••••">
+                                                <button type="button" class="password-toggle" onclick="togglePasswordVisibility('settingsRetypePassword', this)" aria-label="Show password">👁</button>
+                                            </div>
                                     </div>
                                     <button class="auth-btn" style="width: auto; padding: 10px 20px; font-size: 13px; margin-left: auto; display: block;" onclick="saveNewPassword()">Change password</button>
+                                    <div style="display:flex; justify-content:flex-start; margin-top:12px;">
+                                        <a style="font-size:13px; font-weight:600; color:#B91C1C; cursor:pointer;" onclick="openPasswordResetRequest()">Forgot password?</a>
+                                    </div>
                                 </div>
                             </div>
 
                             <!-- TAB 3: Language & Region (Language and region.png) -->
                             <div class="settings-content-pane" id="settings-pane-language">
                                 <div class="settings-card">
-                                    <h3>App language</h3>
-                                    <div style="border: 1px solid #E2E8F0; border-radius: 12px; padding: 16px; display: flex; justify-content: space-between; align-items: center; cursor: pointer;" onclick="openLanguageModal()">
+                                    <h3>App language <i>(more soon)</i></h3>
+                                    <div style="border: 1px solid #E2E8F0; border-radius: 12px; padding: 16px; display: flex; justify-content: space-between; align-items: center;">
                                         <div>
                                             <h4 style="font-size: 14px; font-weight: 600; color: var(--text-main);">Account language</h4>
-                                            <p style="font-size: 11px; color: var(--text-muted); margin-top: 4px; line-height: 1.4;" id="settingsActiveLangDesc">English(US)</p>
+                                            <p style="font-size: 11px; color: var(--text-muted); margin-top: 4px; line-height: 1.4;" id="settingsActiveLangDesc">(Default) English (US)</p>
                                         </div>
-                                        <span style="font-size: 20px; color: var(--text-muted); margin-left: 12px;">›</span>
                                     </div>
                                 </div>
 
                                 <div class="settings-card">
-                                    <h3>Region and format</h3>
-                                    <div style="border: 1px solid #E2E8F0; border-radius: 12px; padding: 16px; display: flex; justify-content: space-between; align-items: center; cursor: pointer;" onclick="openRegionModal()">
+                                    <h3>Region and format <i>(more soon)</i></h3>
+                                    <div style="border: 1px solid #E2E8F0; border-radius: 12px; padding: 16px; display: flex; justify-content: space-between; align-items: center;">
                                         <div>
                                             <h4 style="font-size: 14px; font-weight: 600; color: var(--text-main);">Date and time</h4>
-                                            <p style="font-size: 11px; color: var(--text-muted); margin-top: 4px; line-height: 1.4;" id="settingsActiveRegionDesc">Philippines (English)</p>
-                                        </div>
-                                        <span style="font-size: 20px; color: var(--text-muted); margin-left: 12px;">›</span>
+                                            <p style="font-size: 11px; color: var(--text-muted); margin-top: 4px; line-height: 1.4;" id="settingsActiveRegionDesc">(Default) Philippines (GMT+8)</p>
+                                        </div>                                    
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="settings-content-pane" id="settings-pane-notifications">
+                                <div class="settings-card">
+                                    <h3>Notifications</h3>
+                                    <p style="font-size:12px; color:var(--text-muted); line-height:1.5; margin-bottom:12px;">Morning motivation and evening congratulations are sent automatically. Task reminders default to 10 minutes before each task and can be changed per task.</p>
+                                    <div style="display:flex; flex-direction:column; gap:12px; margin-top:8px;">
+                                        <label style="display:flex; justify-content:space-between; align-items:center;">
+                                            <span>Allow device notifications on this browser</span>
+                                            <input type="checkbox" id="deviceNotificationsToggle">
+                                        </label>
+                                    </div>
+                                    <div style="display:flex; justify-content:flex-end; margin-top:16px;">
+                                        <button class="auth-btn" onclick="saveNotificationSettings()">Save</button>
                                     </div>
                                 </div>
                             </div>
@@ -357,6 +443,14 @@
                             <option value="high">High Priority</option>
                         </select>
                     </div>
+                    <div class="form-group">
+                        <select id="taskCategory">
+                            <option value="School">School</option>
+                            <option value="Work">Work</option>
+                            <option value="Personal">Personal</option>
+                            <option value="Others" selected>Others</option>
+                        </select>
+                    </div>
                     <button type="submit" class="save-btn">Save</button>
                 </form>
             </div>
@@ -385,6 +479,14 @@
                             <option value="low">Low Priority</option>
                             <option value="medium">Medium Priority</option>
                             <option value="high">High Priority</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <select id="editTaskCategory">
+                            <option value="School">School</option>
+                            <option value="Work">Work</option>
+                            <option value="Personal">Personal</option>
+                            <option value="Others">Others</option>
                         </select>
                     </div>
                     <div class="form-group">
@@ -418,6 +520,31 @@
             </div>
         </div>
 
+        <!-- TASK REMINDER MODAL -->
+        <div class="modal-overlay" id="reminderModal">
+            <div class="modal-card" style="max-width: 380px;">
+                <button class="modal-close" onclick="closeReminderModal()">&times;</button>
+                <h3>Task Reminder</h3>
+                <input type="hidden" id="reminderTaskId">
+                <div class="form-group">
+                    <select id="reminderPreset">
+                        <option value="0">At task time</option>
+                        <option value="5">5 minutes before</option>
+                        <option value="10">10 minutes before</option>
+                        <option value="30">30 minutes before</option>
+                        <option value="60">1 hour before</option>
+                        <option value="1440">1 day before</option>
+                        <option value="10080">1 week before</option>
+                        <option value="custom">Custom minutes</option>
+                    </select>
+                </div>
+                <div class="form-group" id="customReminderGroup" style="display:none;">
+                    <input type="number" id="customReminderMinutes" min="0" max="43200" placeholder="Minutes before">
+                </div>
+                <button class="auth-btn" onclick="saveTaskReminder()">Save reminder</button>
+            </div>
+        </div>
+
         <!-- VOICE RECOGNITION POPUP / TOAST -->
         <div class="voice-toast" id="voiceToast">Listening... Speak now.</div>
 
@@ -443,6 +570,49 @@
                 <div style="display: flex; gap: 12px; margin-top: 24px;">
                     <button class="auth-btn" style="background-color: #E2E8F0; color: var(--text-main);" onclick="closeUploadPhotoModal()">Cancel</button>
                     <button class="auth-btn" onclick="saveUploadPhoto()">Save</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- CHANGE EMAIL SECURE MODAL -->
+        <div class="modal-overlay" id="changeEmailModal">
+            <div class="modal-card" style="max-width:420px;">
+                <button class="modal-close" onclick="closeChangeEmailModal()">&times;</button>
+                <h3>Change Email</h3>
+                <div class="form-group">
+                    <label>New email</label>
+                    <input type="email" id="changeEmailNew" class="auth-input" placeholder="new@example.com">
+                </div>
+                <div class="form-group">
+                    <label>Confirm with password</label>
+                    <div class="password-field">
+                        <input type="password" id="changeEmailPassword" class="auth-input" placeholder="Your password">
+                        <button type="button" class="password-toggle" onclick="togglePasswordVisibility('changeEmailPassword', this)" aria-label="Show password">👁</button>
+                    </div>
+                </div>
+                <div style="display:flex; gap:12px; justify-content:flex-end; margin-top:12px;">
+                    <button class="auth-btn" onclick="closeChangeEmailModal()">Cancel</button>
+                    <button class="auth-btn" onclick="submitChangeEmail()">Confirm Change</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- DELETE ACCOUNT SECURE MODAL -->
+        <div class="modal-overlay" id="deleteAccountModal">
+            <div class="modal-card" style="max-width:420px; text-align:left;">
+                <button class="modal-close" onclick="closeDeleteAccountModal()">&times;</button>
+                <h3 style="color:#B91C1C;">Danger: Delete Account</h3>
+                <p style="font-size:13px; color:var(--text-muted);">This is a dangerous action. Type your account password to confirm permanent deletion.</p>
+                <div class="form-group">
+                    <label>Password</label>
+                    <div class="password-field">
+                        <input type="password" id="deleteAccountPassword" class="auth-input" placeholder="Your password">
+                        <button type="button" class="password-toggle" onclick="togglePasswordVisibility('deleteAccountPassword', this)" aria-label="Show password">👁</button>
+                    </div>
+                </div>
+                <div style="display:flex; gap:12px; justify-content:flex-end; margin-top:12px;">
+                    <button class="auth-btn" onclick="closeDeleteAccountModal()">Cancel</button>
+                    <button class="auth-btn" style="background-color:#B91C1C; color:white;" onclick="submitDeleteAccount()">Delete Account</button>
                 </div>
             </div>
         </div>
