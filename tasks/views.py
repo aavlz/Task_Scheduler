@@ -7,10 +7,10 @@ from datetime import datetime, timedelta
 from dateutil import parser as date_parser
 import re
 
-from .models import Task
-from .serializers import TaskSerializer
+from .models import Task, TaskCategory, TaskReminder
+from .serializers import TaskCategorySerializer, TaskSerializer
 
-
+# Create your views here.
 
 class TaskViewSet(viewsets.ModelViewSet):
     """
@@ -20,10 +20,57 @@ class TaskViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        return Task.objects.filter(user=self.request.user)
+        queryset = Task.objects.select_related('category').filter(user=self.request.user)
+        params = self.request.query_params
+        today = timezone.localtime(timezone.now()).date()
+
+        status_filter = params.get('status')
+        priority_filter = params.get('priority')
+        category_filter = params.get('category')
+        search = params.get('search') or params.get('q')
+        view = params.get('view')
+
+        if status_filter:
+            queryset = queryset.filter(status=status_filter.lower())
+        if priority_filter:
+            queryset = queryset.filter(priority=priority_filter.lower())
+        if category_filter:
+            queryset = queryset.filter(category__name__iexact=category_filter)
+        if search:
+            queryset = queryset.filter(title__icontains=search)
+        if view == 'today':
+            queryset = queryset.filter(date=today)
+        elif view == 'upcoming':
+            queryset = queryset.filter(date__gt=today)
+        elif view == 'overdue':
+            queryset = queryset.filter(status='pending', date__lt=today)
+        elif view == 'completed':
+            queryset = queryset.filter(status='completed')
+        elif view == 'high':
+            queryset = queryset.filter(priority='high', status='pending')
+
+        return queryset
 
     def perform_create(self, serializer):
-        serializer.save(user=self.request.user)
+        task = serializer.save(user=self.request.user)
+        self._sync_task_reminder(task)
+
+    def perform_update(self, serializer):
+        task = serializer.save()
+        self._sync_task_reminder(task)
+
+    def _sync_task_reminder(self, task):
+        if not task.time:
+            task.reminders.all().delete()
+            return
+        scheduled = datetime.combine(task.date, task.time)
+        if timezone.is_naive(scheduled):
+            scheduled = timezone.make_aware(scheduled, timezone.get_current_timezone())
+        remind_at = scheduled - timedelta(minutes=task.reminder_minutes_before)
+        TaskReminder.objects.update_or_create(
+            task=task,
+            defaults={'remind_at': remind_at, 'delivered': False},
+        )
 
 
     # GET /api/tasks/summary/
@@ -75,13 +122,21 @@ class TaskViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
-        parsed = self._parse_voice_command(transcript)
+        try:
+            from voice_parser.services import VoiceCommandService
 
-        serializer = self.get_serializer(data=parsed)
-        serializer.is_valid(raise_exception=True)
-        serializer.save(user=request.user)
+            result = VoiceCommandService(request.user).execute(transcript)
+            if result.get('task'):
+                return Response(result['task'], status=status.HTTP_201_CREATED)
+            return Response(result, status=status.HTTP_200_OK)
+        except Exception:
+            parsed = self._parse_voice_command(transcript)
 
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+            serializer = self.get_serializer(data=parsed)
+            serializer.is_valid(raise_exception=True)
+            serializer.save(user=request.user)
+
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
     
     def _parse_voice_command(self, transcript):
         """
@@ -155,3 +210,20 @@ class TaskViewSet(viewsets.ModelViewSet):
             'priority': priority,
             'status': 'pending',
         }
+
+
+class TaskCategoryViewSet(viewsets.ModelViewSet):
+    serializer_class = TaskCategorySerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        for name in TaskCategory.ALLOWED_NAMES:
+            TaskCategory.objects.get_or_create(
+                user=self.request.user,
+                name=name,
+                defaults={'color': TaskCategory.DEFAULT_COLORS.get(name, '#338A85')},
+            )
+        return TaskCategory.objects.filter(user=self.request.user, name__in=TaskCategory.ALLOWED_NAMES)
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
