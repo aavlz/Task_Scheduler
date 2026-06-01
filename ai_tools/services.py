@@ -332,20 +332,20 @@ class AIService:
             return {'intent': 'task_summary', 'confidence': 0.86, 'used_external_ai': False}
         if 'export' in text:
             return {'intent': 'export_tasks', 'confidence': 0.8, 'used_external_ai': False}
-        if any(word in text for word in ['complete', 'done', 'finish', 'tapusin']):
-            return {'intent': 'complete_task', 'query': self._after_marker(text, ['complete', 'done', 'finish', 'tapusin']), 'confidence': 0.82, 'used_external_ai': False}
-        if any(word in text for word in ['delete', 'remove', 'burahin', 'tanggalin']):
-            return {'intent': 'delete_task', 'query': self._after_marker(text, ['delete', 'remove', 'burahin', 'tanggalin']), 'confidence': 0.82, 'used_external_ai': False}
-        if any(word in text for word in ['update', 'change', 'move', 'reschedule', 'edit', 'palitan', 'ilipat']):
-            return {'intent': 'update_task', 'query': self._after_marker(text, ['update', 'change', 'move', 'reschedule', 'edit', 'palitan', 'ilipat']), 'confidence': 0.82, 'used_external_ai': False}
-        if any(word in text for word in ['search', 'find', 'hanapin']):
-            return {'intent': 'search_tasks', 'query': self._after_marker(text, ['search', 'find', 'hanapin']), 'confidence': 0.84, 'used_external_ai': False}
+        if any(word in text for word in ['complete', 'done', 'finish', 'tapusin', 'kumpleto', 'markahan']):
+            return {'intent': 'complete_task', 'query': self._after_marker(text, ['complete', 'done', 'finish', 'tapusin', 'kumpleto', 'markahan']), 'confidence': 0.82, 'used_external_ai': False}
+        if any(word in text for word in ['delete', 'remove', 'burahin', 'tanggalin', 'alisin']):
+            return {'intent': 'delete_task', 'query': self._after_marker(text, ['delete', 'remove', 'burahin', 'tanggalin', 'alisin']), 'confidence': 0.82, 'used_external_ai': False}
+        if any(word in text for word in ['update', 'change', 'move', 'reschedule', 'edit', 'palitan', 'ilipat', 'baguhin']):
+            return {'intent': 'update_task', 'query': self._after_marker(text, ['update', 'change', 'move', 'reschedule', 'edit', 'palitan', 'ilipat', 'baguhin']), 'confidence': 0.82, 'used_external_ai': False}
+        if any(word in text for word in ['search', 'find', 'hanapin', 'maghanap']):
+            return {'intent': 'search_tasks', 'query': self._after_marker(text, ['search', 'find', 'hanapin', 'maghanap']), 'confidence': 0.84, 'used_external_ai': False}
         if (
             any(phrase in text for phrase in ['show my tasks', 'list tasks', 'show tasks', 'ipakita'])
             or (('show' in text or 'list' in text) and ('task' in text or 'tasks' in text))
         ):
             return {'intent': 'filter_tasks', 'target': self._filter_target(text), 'confidence': 0.8, 'used_external_ai': False}
-        if any(word in text for word in ['add', 'create', 'schedule', 'remind', 'gawa', 'gumawa', 'dagdag']):
+        if any(word in text for word in ['add', 'create', 'schedule', 'remind', 'gawa', 'gumawa', 'dagdag', 'idagdag', 'magdagdag', 'paalala']):
             return {'intent': 'create_task', 'confidence': 0.78, 'used_external_ai': False}
         return {'intent': 'create_task', 'confidence': 0.55, 'used_external_ai': False}
 

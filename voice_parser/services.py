@@ -43,6 +43,60 @@ VOICE_CORRECTIONS = {
     'send grid': 'SendGrid',
 }
 
+FILIPINO_WEEKDAYS = {
+    'lunes': 'monday',
+    'monday': 'monday',
+    'martes': 'tuesday',
+    'tuesday': 'tuesday',
+    'miyerkules': 'wednesday',
+    'wednesday': 'wednesday',
+    'huwebes': 'thursday',
+    'thursday': 'thursday',
+    'biyernes': 'friday',
+    'friday': 'friday',
+    'sabado': 'saturday',
+    'saturday': 'saturday',
+    'linggo': 'sunday',
+    'sunday': 'sunday',
+}
+
+FILIPINO_NUMBERS = {
+    'isa': 1,
+    'uno': 1,
+    'one': 1,
+    'dalawa': 2,
+    'dos': 2,
+    'two': 2,
+    'tatlo': 3,
+    'tres': 3,
+    'three': 3,
+    'apat': 4,
+    'kwatro': 4,
+    'four': 4,
+    'lima': 5,
+    'singko': 5,
+    'five': 5,
+    'anim': 6,
+    'sais': 6,
+    'six': 6,
+    'pito': 7,
+    'siete': 7,
+    'seven': 7,
+    'walo': 8,
+    'otso': 8,
+    'eight': 8,
+    'siyam': 9,
+    'nueve': 9,
+    'nine': 9,
+    'diez': 10,
+    'sampu': 10,
+    'ten': 10,
+    'onse': 11,
+    'eleven': 11,
+    'dose': 12,
+    'twelve': 12,
+}
+
 
 class VoiceCommandService:
     def __init__(self, user, request=None):
@@ -139,15 +193,27 @@ class VoiceCommandService:
 
         # Priority detection (supports 'high', 'medium', 'low')
         priority = 'medium'
-        for value in ['high', 'medium', 'low']:
-            if f'priority {value}' in text or f'{value} priority' in text:
+        priority_aliases = {
+            'high': ['high', 'mataas', 'urgent', 'importante'],
+            'medium': ['medium', 'katamtaman', 'normal'],
+            'low': ['low', 'mababa'],
+        }
+        for value, words in priority_aliases.items():
+            pattern = r'\b(?:priority|prayoridad)?\s*(' + '|'.join(re.escape(word) for word in words) + r')\s*(?:priority|prayoridad)?\b'
+            if re.search(pattern, text):
                 priority = value
-                text = re.sub(rf'(priority\s+{value}|{value}\s+priority)', '', text).strip()
+                text = re.sub(pattern, '', text).strip()
                 break
 
         category_label = self._extract_category(text)
         if category_label:
-            text = re.sub(rf'\b(category|in|under)\s+{category_label.lower()}\b', '', text).strip()
+            text = re.sub(
+                r'\b(category|kategorya|sa|para sa|under|in)\s+'
+                r'(school|paaralan|eskwela|skwela|klase|work|trabaho|opisina|personal|sarili|pansarili|others|other|iba(?:\s+pa)?)\b',
+                '',
+                text,
+                flags=re.IGNORECASE,
+            ).strip()
 
         # Relative date parsing: 'in 2 days', 'next week', 'this evening', 'tomorrow', 'today'
         task_date = now.date()
@@ -165,14 +231,14 @@ class VoiceCommandService:
         elif 'tomorrow' in text or 'bukas' in text:
             task_date = now.date() + timedelta(days=1)
             text = text.replace('tomorrow', '').replace('bukas', '').strip()
-        elif 'today' in text or 'ngayon' in text:
-            text = text.replace('today', '').replace('ngayon', '').strip()
+        elif 'today' in text or 'ngayon' in text or 'mamaya' in text:
+            text = text.replace('today', '').replace('ngayon', '').replace('mamaya', '').strip()
         else:
             weekday_date = self._parse_weekday(text, now)
             if weekday_date:
                 task_date = weekday_date
                 text = re.sub(
-                    r'\b(next\s+)?(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b',
+                    r'\b(next\s+|sa\s+susunod\s+na\s+|sa\s+)?(monday|tuesday|wednesday|thursday|friday|saturday|sunday|lunes|martes|miyerkules|huwebes|biyernes|sabado|linggo)\b',
                     '',
                     text,
                     flags=re.IGNORECASE,
@@ -223,13 +289,17 @@ class VoiceCommandService:
                     matched = True
                     break
             if not matched:
-                if 'noon' in text:
+                filipino_time = self._parse_filipino_time(text)
+                if filipino_time:
+                    time_value, matched_text = filipino_time
+                    text = text.replace(matched_text, '').strip()
+                elif 'noon' in text or 'tanghali' in text:
                     time_value = '12:00'
-                    text = text.replace('noon', '').strip()
+                    text = text.replace('noon', '').replace('tanghali', '').strip()
                 elif 'midnight' in text:
                     time_value = '00:00'
                     text = text.replace('midnight', '').strip()
-                elif 'this evening' in transcript or 'tonight' in transcript:
+                elif any(word in transcript.lower() for word in ['this evening', 'tonight', 'gabi', 'hapon']):
                     # favor 18:00 for evening
                     time_value = '18:00'
 
@@ -237,7 +307,9 @@ class VoiceCommandService:
         title = re.sub(
             r"\b(add|create|schedule|set|remind|me|to|a|an|the|at|on|today|tomorrow|am|pm|"
             r"category|under|school|work|personal|others|other|"
-            r"gawa|gumawa|dagdag|ng|sa|ako|bukas|ngayon|in)\b",
+            r"gawa|gumawa|dagdag|idagdag|magdagdag|paalala|ng|sa|ako|bukas|ngayon|mamaya|"
+            r"para|kategorya|prayoridad|mataas|katamtaman|mababa|importante|"
+            r"alas|umaga|hapon|gabi|tanghali|susunod|na|in)\b",
             '',
             text,
         )
@@ -253,8 +325,8 @@ class VoiceCommandService:
         }
 
     def _extract_category(self, text):
-        for word in ['school', 'work', 'personal', 'others', 'other']:
-            if re.search(rf'\b(?:category|in|under)?\s*{word}\b', text, re.IGNORECASE):
+        for word in ['school', 'paaralan', 'eskwela', 'skwela', 'klase', 'work', 'trabaho', 'opisina', 'personal', 'sarili', 'pansarili', 'others', 'other', 'iba', 'iba pa']:
+            if re.search(rf'\b(?:category|kategorya|in|under|sa|para sa)?\s*{word}\b', text, re.IGNORECASE):
                 return normalize_category_name(word)
         return ''
 
@@ -268,14 +340,40 @@ class VoiceCommandService:
             'saturday': 5,
             'sunday': 6,
         }
-        match = re.search(r'\b(next\s+)?(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b', text, re.IGNORECASE)
+        match = re.search(
+            r'\b(next\s+|sa\s+susunod\s+na\s+|sa\s+)?'
+            r'(monday|tuesday|wednesday|thursday|friday|saturday|sunday|lunes|martes|miyerkules|huwebes|biyernes|sabado|linggo)\b',
+            text,
+            re.IGNORECASE,
+        )
         if not match:
             return None
-        target = weekdays[match.group(2).lower()]
+        weekday = FILIPINO_WEEKDAYS.get(match.group(2).lower(), match.group(2).lower())
+        target = weekdays[weekday]
         days = (target - now.date().weekday()) % 7
         if days == 0 or match.group(1):
             days += 7
         return now.date() + timedelta(days=days)
+
+    def _parse_filipino_time(self, text):
+        match = re.search(
+            r'\balas\s+(\d{1,2}|[a-z]+)(?:\s+(?:y\s+)?(?:media|trenta))?\s*(?:ng\s+)?(umaga|hapon|gabi)?\b',
+            text,
+            re.IGNORECASE,
+        )
+        if not match:
+            return None
+        hour_text = match.group(1).lower()
+        hour = int(hour_text) if hour_text.isdigit() else FILIPINO_NUMBERS.get(hour_text)
+        if not hour or hour > 12:
+            return None
+        minute = 30 if any(word in match.group(0).lower() for word in ['media', 'trenta']) else 0
+        period = match.group(2)
+        if period in ['hapon', 'gabi'] and hour != 12:
+            hour += 12
+        elif period == 'umaga' and hour == 12:
+            hour = 0
+        return f'{hour:02d}:{minute:02d}', match.group(0)
 
     def _create_task(self, transcript, classification):
         payload = self.parse_task_payload(transcript)
@@ -356,13 +454,13 @@ class VoiceCommandService:
         return split_match[0].strip(' :') if split_match else text
 
     def _has_date_signal(self, text):
-        return any(word in text for word in ['today', 'tomorrow', 'bukas', 'ngayon', 'next week']) or bool(
-            re.search(r'\b(next\s+)?(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b|\b\w+\s+\d{1,2}\b|\bin\s+\d+\s+days?\b', text)
+        return any(word in text for word in ['today', 'tomorrow', 'bukas', 'ngayon', 'mamaya', 'next week']) or bool(
+            re.search(r'\b(next\s+|sa\s+susunod\s+na\s+|sa\s+)?(monday|tuesday|wednesday|thursday|friday|saturday|sunday|lunes|martes|miyerkules|huwebes|biyernes|sabado|linggo)\b|\b\w+\s+\d{1,2}\b|\bin\s+\d+\s+days?\b', text)
         )
 
     def _has_time_signal(self, text):
-        return any(word in text for word in ['noon', 'midnight', 'tonight', 'evening']) or bool(
-            re.search(r'\bat\s+\d{1,2}|\b\d{1,2}(:\d{2})?\s*(am|pm)\b|\b\d{1,2}:\d{2}\b|\bin\s+\d+\s+hours?\b', text)
+        return any(word in text for word in ['noon', 'midnight', 'tonight', 'evening', 'tanghali', 'umaga', 'hapon', 'gabi']) or bool(
+            re.search(r'\bat\s+\d{1,2}|\balas\s+(\d{1,2}|[a-z]+)|\b\d{1,2}(:\d{2})?\s*(am|pm)\b|\b\d{1,2}:\d{2}\b|\bin\s+\d+\s+hours?\b', text)
         )
 
     def _complete_task(self, transcript, classification):
@@ -475,7 +573,7 @@ class VoiceCommandService:
 
     def _find_task(self, query):
         cleaned = re.sub(
-            r'\b(complete|done|finish|delete|remove|task|old|reminder|tapusin|burahin|tanggalin)\b',
+            r'\b(complete|done|finish|delete|remove|task|old|reminder|tapusin|burahin|tanggalin|alisin|kumpleto|markahan)\b',
             '',
             query.lower(),
         ).strip(' :')

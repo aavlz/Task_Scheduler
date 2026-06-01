@@ -1372,8 +1372,7 @@ h2 {
     position: relative;
 }
 
-.ai-section.collapsed .ai-result-panel,
-.ai-section.collapsed .ai-action-row {
+.ai-section.collapsed .ai-result-panel {
     display: none;
 }
 

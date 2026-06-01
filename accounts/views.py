@@ -284,7 +284,7 @@ class ProfileView(APIView):
 
     def get(self, request):
         profile, _ = UserProfile.objects.get_or_create(user=request.user)
-        serializer = UserProfileSerializer(profile)
+        serializer = UserProfileSerializer(profile, context={'request': request})
         return Response(serializer.data)
     
     def patch(self, request):
@@ -313,7 +313,7 @@ class ProfileView(APIView):
         request.user.refresh_from_db()
 
         # Update profile fields, including file uploads
-        serializer = UserProfileSerializer(profile, data=request.data, partial=True)
+        serializer = UserProfileSerializer(profile, data=request.data, partial=True, context={'request': request})
         serializer.is_valid(raise_exception=True)
         serializer.save()
 

@@ -8,17 +8,26 @@ def normalize_category_name(value):
     cleaned = value.strip().lower()
     aliases = {
         'school': 'School',
+        'paaralan': 'School',
+        'eskwela': 'School',
+        'skwela': 'School',
+        'klase': 'School',
         'class': 'School',
         'classes': 'School',
         'assignment': 'School',
         'trabaho': 'Work',
+        'opisina': 'Work',
         'work': 'Work',
         'office': 'Work',
         'personal': 'Personal',
         'sarili': 'Personal',
+        'pansarili': 'Personal',
+        'bahay': 'Personal',
         'home': 'Personal',
         'others': 'Others',
         'other': 'Others',
+        'iba': 'Others',
+        'iba pa': 'Others',
         'misc': 'Others',
     }
     return aliases.get(cleaned, '')

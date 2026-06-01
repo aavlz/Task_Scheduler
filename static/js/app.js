@@ -1602,43 +1602,54 @@ async function saveNewPassword() {
 }
 
 // --- NOTIFICATION SETTINGS HANDLERS ---
-function saveNotificationSettings() {
-    const enabled = document.getElementById('deviceNotificationsToggle')?.checked || false;
+async function saveNotificationSettings() {
+    const toggle = document.getElementById('deviceNotificationsToggle');
+    let enabled = !!toggle?.checked;
 
     if (enabled && 'Notification' in window && Notification.permission === 'default') {
-        Notification.requestPermission().then(permission => {
-            if (permission !== 'granted') {
-                document.getElementById('deviceNotificationsToggle').checked = false;
-                showSystemToast('Device notifications were not allowed by the browser.');
-                return;
-            }
-            saveNotificationSettings();
-        });
+        const permission = await Notification.requestPermission();
+        if (permission !== 'granted') {
+            if (toggle) toggle.checked = false;
+            enabled = false;
+            showSystemToast('Device notifications were not allowed by the browser.');
+            return;
+        }
+    }
+
+    if (enabled && 'Notification' in window && Notification.permission !== 'granted') {
+        if (toggle) toggle.checked = false;
+        enabled = false;
+        showSystemToast('Device notifications are blocked in this browser.');
         return;
     }
 
-    if (isOnline) {
-        apiFetch(ENDPOINTS.profile, {
+    currentUser.device_notifications_enabled = enabled;
+    localStorage.setItem('vast_user', JSON.stringify(currentUser));
+
+    if (!isOnline) {
+        showSystemToast('Notification preference saved on this browser.');
+        return;
+    }
+
+    try {
+        const resp = await apiFetch(ENDPOINTS.profile, {
             method: 'PATCH',
             body: JSON.stringify({ device_notifications_enabled: enabled })
-        }).then(async (resp) => {
-            if (resp.ok) {
-                const profile = await resp.json();
-                syncCurrentUserFromBackend(profile);
-                showSystemToast('Notification settings saved.');
-            } else {
-                const body = await resp.json().catch(() => ({}));
-                showSystemToast(`Unable to save: ${formatApiError(body)}`);
-            }
-        }).catch(err => {
-            console.error('Save notification settings failed', err);
-            showSystemToast('Unable to save notification settings.');
         });
-    } else {
-        showSystemToast('You are offline. Notification preferences will be saved when online.');
-        // store in local user object
-        currentUser.device_notifications_enabled = enabled;
-        localStorage.setItem('vast_user', JSON.stringify(currentUser));
+
+        if (resp.ok) {
+            const profile = await resp.json();
+            syncCurrentUserFromBackend(profile);
+            showSystemToast('Notification settings saved.');
+            return;
+        }
+
+        const body = await resp.json().catch(() => ({}));
+        console.warn('Save notification settings failed', body);
+        showSystemToast('Notification preference saved on this browser.');
+    } catch (err) {
+        console.error('Save notification settings failed', err);
+        showSystemToast('Notification preference saved on this browser.');
     }
 }
 async function saveEmailChanges() {
@@ -1763,7 +1774,7 @@ function updateAvatarPreviewInModal() {
 
 async function saveUploadPhoto() {
     const formData = new FormData();
-    formData.append('avatar_bg_color', activeAvatarBg || '');
+    formData.append('avatar_bg_color', activeAvatarBg || currentUser?.avatarBg || '#338A85');
 
     if (selectedAvatarFile) {
         formData.append('avatar_image', selectedAvatarFile);
@@ -2497,26 +2508,41 @@ function localParseVoice(phrase) {
     const lower = p.toLowerCase();
 
     // Only attempt to parse commands that start with add/create or similar
-    if (!/^(add|create|new)\b/i.test(p)) return null;
+    if (!/^(add|create|new|dagdag|idagdag|magdagdag|gawa|gumawa|paalala)\b/i.test(p)) return null;
 
     // Extract priority
     let priority = 'medium';
-    const prMatch = lower.match(/priority\s+(high|medium|low)/i);
-    if (prMatch) priority = prMatch[1];
+    const prMatch = lower.match(/(?:priority|prayoridad)\s+(high|medium|low|mataas|katamtaman|mababa)/i);
+    if (prMatch) {
+        const priorityMap = { mataas: 'high', katamtaman: 'medium', mababa: 'low' };
+        priority = priorityMap[prMatch[1]] || prMatch[1];
+    }
 
     let category = 'Others';
-    const categoryMatch = lower.match(/\b(?:category|in|under)\s+(school|work|personal|others|other)\b/i);
+    const categoryMatch = lower.match(/\b(?:category|kategorya|in|under|sa|para sa)\s+(school|paaralan|eskwela|skwela|klase|work|trabaho|opisina|personal|sarili|pansarili|others|other|iba)\b/i);
     if (categoryMatch) {
-        category = categoryMatch[1].charAt(0).toUpperCase() + categoryMatch[1].slice(1).toLowerCase();
-        if (category === 'Other') category = 'Others';
+        const categoryMap = {
+            paaralan: 'School',
+            eskwela: 'School',
+            skwela: 'School',
+            klase: 'School',
+            trabaho: 'Work',
+            opisina: 'Work',
+            sarili: 'Personal',
+            pansarili: 'Personal',
+            iba: 'Others',
+            other: 'Others',
+            others: 'Others'
+        };
+        category = categoryMap[categoryMatch[1]] || categoryMatch[1].charAt(0).toUpperCase() + categoryMatch[1].slice(1).toLowerCase();
     }
 
     // Extract date
     let date = null;
-    if (/\btomorrow\b/i.test(lower)) {
+    if (/\b(tomorrow|bukas)\b/i.test(lower)) {
         const d = new Date(); d.setDate(d.getDate() + 1);
         date = d.toISOString().slice(0,10);
-    } else if (/\btoday\b/i.test(lower)) {
+    } else if (/\b(today|ngayon|mamaya)\b/i.test(lower)) {
         const d = new Date(); date = d.toISOString().slice(0,10);
     } else {
         // ISO date detection
@@ -2534,8 +2560,17 @@ function localParseVoice(phrase) {
 
     // Extract time
     let time = null;
+    const filipinoTimeMatch = lower.match(/\balas\s+(\d{1,2}|una|isa|uno|dalawa|dos|tatlo|tres|apat|kwatro|lima|singko|anim|sais|pito|siete|walo|otso|siyam|nueve|diez|sampu|onse|dose)(?:\s+(?:y\s+)?(?:media|trenta))?\s*(?:ng\s+)?(umaga|hapon|gabi)?\b/i);
     const timeMatch = p.match(/(\d{1,2}:\d{2}\s*(am|pm)?)/i) || p.match(/(\d{1,2}\s*(am|pm))/i);
-    if (timeMatch) {
+    if (filipinoTimeMatch) {
+        const numberMap = { una: 1, isa: 1, uno: 1, dalawa: 2, dos: 2, tatlo: 3, tres: 3, apat: 4, kwatro: 4, lima: 5, singko: 5, anim: 6, sais: 6, pito: 7, siete: 7, walo: 8, otso: 8, siyam: 9, nueve: 9, diez: 10, sampu: 10, onse: 11, dose: 12 };
+        let hour = /^\d+$/.test(filipinoTimeMatch[1]) ? parseInt(filipinoTimeMatch[1], 10) : numberMap[filipinoTimeMatch[1]];
+        const minute = /(media|trenta)/i.test(filipinoTimeMatch[0]) ? 30 : 0;
+        const period = filipinoTimeMatch[2];
+        if ((period === 'hapon' || period === 'gabi') && hour !== 12) hour += 12;
+        if (period === 'umaga' && hour === 12) hour = 0;
+        time = `${String(hour).padStart(2,'0')}:${String(minute).padStart(2,'0')}`;
+    } else if (timeMatch) {
         let t = timeMatch[1].trim();
         // Normalize to HH:MM 24h
         let dt = Date.parse('01/01/1970 ' + t);
@@ -2548,7 +2583,7 @@ function localParseVoice(phrase) {
     }
 
     // Extract title: everything after 'add' until the first date/time/priority keyword
-    const titleMatch = p.match(/^(?:add|create|new)\s+(.+?)(?:\s+on\s+|\s+at\s+|\s+tomorrow\b|\s+today\b|\s+priority\b|$)/i);
+    const titleMatch = p.match(/^(?:add|create|new|dagdag|idagdag|magdagdag|gawa|gumawa|paalala)\s+(.+?)(?:\s+on\s+|\s+at\s+|\s+sa\s+|\s+alas\s+|\s+tomorrow\b|\s+today\b|\s+bukas\b|\s+ngayon\b|\s+mamaya\b|\s+priority\b|\s+prayoridad\b|$)/i);
     const title = titleMatch ? titleMatch[1].trim() : null;
     if (!title) return null;
 
@@ -2627,8 +2662,14 @@ async function initAIActions() {
     if (collapseBtn) {
         collapseBtn.addEventListener('click', () => {
             const section = collapseBtn.closest('.ai-section');
-            const collapsed = section.classList.toggle('collapsed');
-            collapseBtn.textContent = collapsed ? 'Expand' : 'Collapse';
+            const panel = document.getElementById('aiResultPanel');
+            if (!section || !panel || panel.dataset.hasResult !== 'true') return;
+
+            section.classList.remove('collapsed');
+            panel.textContent = 'Run a summary or open the guide for voice-assisted scheduling tips.';
+            panel.dataset.hasResult = 'false';
+            panel.style.display = 'block';
+            collapseBtn.textContent = 'Collapse';
         });
     }
 }
@@ -2708,7 +2749,9 @@ function renderAIResult(result) {
         ${metricHTML}
         ${recommendationHTML}
     `;
+    panel.dataset.hasResult = 'true';
     panel.style.display = 'block';
+    panel.closest('.ai-section')?.classList.remove('collapsed');
     triggerVocalResponse(summary);
 }
 
