@@ -406,3 +406,4 @@ class HealthCheckView(APIView):
 
     def get(self, request):
         return Response({'status': 'ok'}, status=status.HTTP_200_OK)
+

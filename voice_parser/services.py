@@ -125,6 +125,16 @@ class VoiceCommandService:
             'task_summary': self._task_summary,
             'how_to': self._how_to,
             'logout': self._logout,
+            'smart_schedule': self._ai_assistant_command,
+            'auto_prioritize': self._ai_assistant_command,
+            'duplicate_cleanup': self._ai_assistant_command,
+            'task_breakdown': self._ai_assistant_command,
+            'natural_reschedule': self._ai_assistant_command,
+            'daily_briefing': self._ai_assistant_command,
+            'smart_search': self._ai_assistant_command,
+            'motivation': self._ai_assistant_command,
+            'workload_analysis': self._ai_assistant_command,
+            'reminder_suggestions': self._ai_assistant_command,
         }
         handler = handlers.get(intent, self._create_task)
         result = handler(corrected_transcript, classification)
@@ -568,6 +578,20 @@ class VoiceCommandService:
             'action': 'how_to',
             'message': guide['summary'],
             'result': guide,
+        }
+
+    def _ai_assistant_command(self, transcript, classification):
+        intent = classification.get('intent') or 'daily_briefing'
+        result = AIService(self.user).run_ai_command(
+            intent,
+            transcript=transcript,
+            query=classification.get('query') or classification.get('target') or '',
+        )
+        return {
+            'success': True,
+            'action': 'ai_command',
+            'message': result.get('summary', 'AI command is ready.'),
+            'result': result,
         }
 
     def _export_tasks(self, transcript, classification):

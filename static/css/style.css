@@ -1409,6 +1409,8 @@ h2 {
 
 .ai-action-row {
     display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
     gap: 8px;
     flex-shrink: 0;
 }
