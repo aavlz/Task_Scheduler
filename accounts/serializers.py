@@ -1,9 +1,14 @@
+import base64
+
 from rest_framework import serializers
 from django.contrib.auth.models import User
 from django.contrib.auth.hashers import make_password
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
 from .models import PendingRegistration, UserProfile
+
+
+MAX_AVATAR_UPLOAD_BYTES = 2 * 1024 * 1024
 
 
 def validate_strong_password(value):
@@ -67,6 +72,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
     email = serializers.EmailField(source='user.email', read_only=True)
     first_name = serializers.CharField(source='user.first_name', read_only=True)
     last_name = serializers.CharField(source='user.last_name', read_only=True)
+    avatar_image = serializers.SerializerMethodField()
 
     class Meta:
         model = UserProfile
@@ -89,6 +95,65 @@ class UserProfileSerializer(serializers.ModelSerializer):
     
     def get_full_name(self, obj):
         return obj.user.get_full_name() or obj.user.username
+
+    def get_avatar_image(self, obj):
+        if obj.avatar_data_url:
+            return obj.avatar_data_url
+        if obj.avatar_image:
+            try:
+                request = self.context.get('request')
+                url = obj.avatar_image.url
+                return request.build_absolute_uri(url) if request else url
+            except ValueError:
+                return ''
+        return ''
+
+    def to_internal_value(self, data):
+        avatar_input = data.get('avatar_image') if hasattr(data, 'get') else None
+        mutable_data = data.copy() if hasattr(data, 'copy') else data
+        if hasattr(mutable_data, 'pop'):
+            mutable_data.pop('avatar_image', None)
+        if hasattr(mutable_data, 'get') and mutable_data.get('avatar_bg_color') == '':
+            mutable_data['avatar_bg_color'] = '#338A85'
+
+        internal = super().to_internal_value(mutable_data)
+        if avatar_input is not None:
+            internal['avatar_image_input'] = avatar_input
+        if internal.get('avatar_bg_color') == '':
+            internal['avatar_bg_color'] = '#338A85'
+        return internal
+
+    def validate_avatar_bg_color(self, value):
+        if not value:
+            return '#338A85'
+        if not isinstance(value, str) or not value.startswith('#') or len(value) != 7:
+            raise serializers.ValidationError('Enter a valid hex color such as #338A85.')
+        return value
+
+    def _avatar_to_data_url(self, avatar_file):
+        if avatar_file == '':
+            return ''
+        if not hasattr(avatar_file, 'read'):
+            return None
+        if getattr(avatar_file, 'size', 0) > MAX_AVATAR_UPLOAD_BYTES:
+            raise serializers.ValidationError({'avatar_image': 'Avatar image must be 2 MB or smaller.'})
+
+        content_type = getattr(avatar_file, 'content_type', '') or 'image/png'
+        if not content_type.startswith('image/'):
+            raise serializers.ValidationError({'avatar_image': 'Upload a valid image file.'})
+
+        encoded = base64.b64encode(avatar_file.read()).decode('ascii')
+        return f'data:{content_type};base64,{encoded}'
+
+    def update(self, instance, validated_data):
+        avatar_input = validated_data.pop('avatar_image_input', None)
+        if avatar_input is not None:
+            data_url = self._avatar_to_data_url(avatar_input)
+            if data_url is not None:
+                instance.avatar_data_url = data_url
+                if data_url == '':
+                    instance.avatar_image = None
+        return super().update(instance, validated_data)
     
 class ChangePasswordSerializer(serializers.Serializer):
     current_password = serializers.CharField(write_only=True)

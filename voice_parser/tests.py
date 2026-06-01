@@ -67,3 +67,32 @@ class VoiceCommandTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.data['success'])
         self.assertEqual(Task.objects.get(user=self.user).status, 'completed')
+
+    def test_voice_command_creates_task_from_filipino_phrase(self):
+        response = self.client.post('/api/voice/command/', {
+            'transcript': 'Magdagdag ng quiz sa math bukas alas tres ng hapon prayoridad mataas kategorya paaralan'
+        }, format='json')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.data['success'])
+        task = Task.objects.get(user=self.user)
+        self.assertEqual(task.title, 'Quiz math')
+        self.assertEqual(task.time, time(15, 0))
+        self.assertEqual(task.priority, 'high')
+        self.assertEqual(task.category.name, 'School')
+
+    def test_voice_command_completes_task_from_filipino_phrase(self):
+        Task.objects.create(
+            user=self.user,
+            title='Math quiz',
+            date=date.today(),
+            time=time(9, 0),
+        )
+
+        response = self.client.post('/api/voice/command/', {
+            'transcript': 'Tapusin ang math quiz'
+        }, format='json')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.data['success'])
+        self.assertEqual(Task.objects.get(user=self.user).status, 'completed')

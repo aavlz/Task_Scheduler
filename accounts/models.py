@@ -21,6 +21,7 @@ class UserProfile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
     avatar_bg_color = models.CharField(max_length=7, default='#338A85')
     avatar_image = models.ImageField(upload_to='avatars/', blank=True, null=True)
+    avatar_data_url = models.TextField(blank=True, default='')
     language = models.CharField(max_length=20, default='English (US)')
     region = models.CharField(max_length=30, default='Philippines (GMT+8)')
 
