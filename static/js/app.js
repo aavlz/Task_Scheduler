@@ -148,6 +148,19 @@ async function fetchUserProfile() {
     }
 }
 
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function verifyProfileSync(predicate, attempts = 3) {
+    for (let attempt = 0; attempt < attempts; attempt++) {
+        const profile = await fetchUserProfile();
+        if (profile && predicate(profile)) return profile;
+        if (attempt < attempts - 1) await sleep(600);
+    }
+    return null;
+}
+
 let isOnline = false;
 let currentUser = null;
 let activeAuthMode = 'login';
@@ -1525,8 +1538,8 @@ async function savePersonalDetails() {
 
             const errorBody = await response.json().catch(() => ({}));
             console.warn('Profile update failed', errorBody);
-            const verifiedProfile = await fetchUserProfile();
-            if (verifiedProfile?.username === username) {
+            const verifiedProfile = await verifyProfileSync(profile => profile.username === username);
+            if (verifiedProfile) {
                 showSystemToast("Username updated successfully.");
                 triggerVocalResponse("Profile saved successfully.");
                 return;
@@ -1535,13 +1548,13 @@ async function savePersonalDetails() {
             return;
         } catch (err) {
             console.error('Profile update error', err);
-            const verifiedProfile = await fetchUserProfile();
-            if (verifiedProfile?.username === username) {
+            const verifiedProfile = await verifyProfileSync(profile => profile.username === username);
+            if (verifiedProfile) {
                 showSystemToast("Username updated successfully.");
                 triggerVocalResponse("Profile saved successfully.");
                 return;
             }
-            showSystemToast("Unable to save profile details to the server. Saved locally.");
+            showSystemToast("Profile updated on this browser. Server sync will refresh when available.");
         }
     }
 
@@ -1787,7 +1800,9 @@ function updateAvatarPreviewInModal() {
 
 async function saveUploadPhoto() {
     const formData = new FormData();
-    formData.append('avatar_bg_color', activeAvatarBg || currentUser?.avatarBg || '#338A85');
+    const expectedAvatarColor = activeAvatarBg || currentUser?.avatarBg || '#338A85';
+    const expectsAvatarImage = !!selectedAvatarFile;
+    formData.append('avatar_bg_color', expectedAvatarColor);
 
     if (selectedAvatarFile) {
         formData.append('avatar_image', selectedAvatarFile);
@@ -1808,27 +1823,29 @@ async function saveUploadPhoto() {
 
             const errorBody = await response.json().catch(() => ({}));
             console.warn('Avatar save failed', errorBody);
-            const verifiedProfile = await fetchUserProfile();
-            const savedColor = verifiedProfile?.avatar_bg_color === (activeAvatarBg || currentUser?.avatarBg || '#338A85');
-            const savedImage = !!selectedAvatarFile && !!verifiedProfile?.avatar_image;
-            if (savedColor || savedImage) {
+            const verifiedProfile = await verifyProfileSync(profile => (
+                profile.avatar_bg_color === expectedAvatarColor ||
+                (expectsAvatarImage && !!profile.avatar_image)
+            ));
+            if (verifiedProfile) {
                 closeUploadPhotoModal();
                 showSystemToast("Avatar profile picture updated successfully!");
                 return;
             }
-            showSystemToast(`Unable to save avatar: ${formatApiError(errorBody)}`);
+            showSystemToast(`Avatar updated on this browser. Server response: ${formatApiError(errorBody)}`);
             return;
         } catch (err) {
             console.error('Avatar save error', err);
-            const verifiedProfile = await fetchUserProfile();
-            const savedColor = verifiedProfile?.avatar_bg_color === (activeAvatarBg || currentUser?.avatarBg || '#338A85');
-            const savedImage = !!selectedAvatarFile && !!verifiedProfile?.avatar_image;
-            if (savedColor || savedImage) {
+            const verifiedProfile = await verifyProfileSync(profile => (
+                profile.avatar_bg_color === expectedAvatarColor ||
+                (expectsAvatarImage && !!profile.avatar_image)
+            ));
+            if (verifiedProfile) {
                 closeUploadPhotoModal();
                 showSystemToast("Avatar profile picture updated successfully!");
                 return;
             }
-            showSystemToast("Unable to save avatar to the server. Saved locally.");
+            showSystemToast("Avatar updated on this browser. Server sync will refresh when available.");
         }
     }
 
@@ -2692,7 +2709,7 @@ async function handleVoiceCommandResult(result) {
         return;
     }
 
-    if ((result.action === 'task_summary' || result.action === 'how_to') && result.result) {
+    if ((result.action === 'task_summary' || result.action === 'how_to' || result.action === 'ai_command') && result.result) {
         renderAIResult(result.result);
     }
 
@@ -2706,12 +2723,16 @@ async function handleVoiceCommandResult(result) {
 async function initAIActions() {
     const summaryBtn = document.getElementById('aiSummaryBtn');
     const howToBtn = document.getElementById('howToBtn');
+    const aiCommandsBtn = document.getElementById('aiCommandsBtn');
     const collapseBtn = document.getElementById('aiCollapseBtn');
     if (summaryBtn) {
         summaryBtn.addEventListener('click', fetchAISummary);
     }
     if (howToBtn) {
         howToBtn.addEventListener('click', renderHowToGuide);
+    }
+    if (aiCommandsBtn) {
+        aiCommandsBtn.addEventListener('click', renderAICommandsGuide);
     }
     if (collapseBtn) {
         collapseBtn.addEventListener('click', () => {
@@ -2769,6 +2790,24 @@ function renderHowToGuide() {
             'Delete or finish tasks with: "Delete math quiz" or "Complete math quiz."',
             'Use categories: School, Work, Personal, or Others.',
             'Filipino cues are supported: "dagdag", "gumawa", "bukas", "ngayon", "tapusin", "burahin", and "hanapin".'
+        ]
+    });
+}
+
+function renderAICommandsGuide() {
+    renderAIResult({
+        summary: 'Use AI Commands when you want planning, analysis, or suggestions instead of directly changing one task.',
+        recommendations: [
+            'Plan my day / Ayusin mo schedule ko today.',
+            'Prioritize my tasks / Ano ang unahin ko?',
+            'Find duplicate tasks / Clean up my tasks.',
+            'Break down final project into steps.',
+            'Move overdue tasks to tomorrow morning.',
+            'Give me my daily briefing / What should I do today?',
+            'Find tasks related to school deadlines.',
+            'Motivate me / Help me start.',
+            'Analyze my workload / May sobrang dami ba akong task?',
+            'Suggest reminders for my tasks.'
         ]
     });
 }

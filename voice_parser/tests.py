@@ -107,3 +107,35 @@ class VoiceCommandTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.data['success'])
         self.assertEqual(Task.objects.get(user=self.user).status, 'completed')
+
+    def test_voice_command_plan_my_day_returns_ai_command_without_creating_task(self):
+        Task.objects.create(
+            user=self.user,
+            title='Review notes',
+            date=date.today(),
+            time=time(9, 0),
+        )
+
+        response = self.client.post('/api/voice/command/', {
+            'transcript': 'Plan my day'
+        }, format='json')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.data['success'])
+        self.assertEqual(response.data['action'], 'ai_command')
+        self.assertEqual(response.data['intent'], 'smart_schedule')
+        self.assertEqual(Task.objects.filter(user=self.user).count(), 1)
+
+    def test_voice_command_find_duplicate_tasks_returns_ai_command(self):
+        Task.objects.create(user=self.user, title='Grocery', date=date.today(), time=time(8, 0))
+        Task.objects.create(user=self.user, title='Grocery', date=date.today(), time=time(8, 0))
+
+        response = self.client.post('/api/voice/command/', {
+            'transcript': 'Find duplicate tasks'
+        }, format='json')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.data['success'])
+        self.assertEqual(response.data['action'], 'ai_command')
+        self.assertEqual(response.data['intent'], 'duplicate_cleanup')
+        self.assertIn('duplicate', response.data['result']['summary'].lower())
