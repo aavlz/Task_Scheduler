@@ -205,5 +205,7 @@ EMAIL_HOST_USER = os.getenv('SENDGRID_USERNAME', os.getenv('EMAIL_HOST_USER', 'a
 EMAIL_HOST_PASSWORD = os.getenv('SENDGRID_PASSWORD', os.getenv('EMAIL_HOST_PASSWORD', ''))
 EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'True').lower() in ('1', 'true', 'yes', 'on')
 EMAIL_USE_SSL = os.getenv('EMAIL_USE_SSL', 'False').lower() in ('1', 'true', 'yes', 'on')
+EMAIL_TIMEOUT = int(os.getenv('EMAIL_TIMEOUT', '10'))
+SENDGRID_API_KEY = os.getenv('SENDGRID_API_KEY', EMAIL_HOST_PASSWORD)
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
