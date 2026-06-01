@@ -1,8 +1,12 @@
 from django.core import mail
+from django.core.mail import EmailMessage
 from django.test import TestCase, override_settings
 from rest_framework.test import APIClient
 from urllib.parse import parse_qs, urlparse
+from unittest.mock import patch
+import json
 
+from .email_backends import SendGridAPIEmailBackend
 from .models import PendingRegistration, UserProfile
 
 
@@ -144,4 +148,32 @@ class AccountAPITests(TestCase):
         }, format='json')
         self.assertEqual(response.status_code, 400)
 
-# Create your tests here.
+
+class SendGridAPIEmailBackendTests(TestCase):
+    @override_settings(
+        DEFAULT_FROM_EMAIL='VAST <verified@example.com>',
+        EMAIL_TIMEOUT=7,
+        SENDGRID_API_KEY='SG.test-key',
+    )
+    @patch('accounts.email_backends.request.urlopen')
+    def test_sendgrid_api_backend_posts_mail_payload(self, mock_urlopen):
+        mock_urlopen.return_value.__enter__.return_value.status = 202
+
+        backend = SendGridAPIEmailBackend()
+        sent = backend.send_messages([
+            EmailMessage(
+                subject='Verify your account',
+                body='Your code is 123456',
+                from_email='VAST <verified@example.com>',
+                to=['student@example.com'],
+            )
+        ])
+
+        self.assertEqual(sent, 1)
+        req = mock_urlopen.call_args.args[0]
+        payload = json.loads(req.data.decode('utf-8'))
+        self.assertEqual(mock_urlopen.call_args.kwargs['timeout'], 7)
+        self.assertEqual(req.headers['Authorization'], 'Bearer SG.test-key')
+        self.assertEqual(payload['from']['email'], 'verified@example.com')
+        self.assertEqual(payload['personalizations'][0]['to'][0]['email'], 'student@example.com')
+        self.assertEqual(payload['content'][0]['value'], 'Your code is 123456')

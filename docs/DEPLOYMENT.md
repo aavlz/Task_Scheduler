@@ -68,8 +68,19 @@ This project is configured to use SQLite locally and PostgreSQL in production wh
    EMAIL_HOST_PASSWORD=<sendgrid-api-key>
    EMAIL_USE_TLS=True
    EMAIL_USE_SSL=False
+   EMAIL_TIMEOUT=10
    GEMINI_API_KEY=<optional>
    OPENAI_API_KEY=<optional>
+   ```
+
+   If registration hangs or Railway logs show a worker timeout while connecting
+   to SMTP, switch to the HTTPS SendGrid backend instead:
+
+   ```env
+   EMAIL_BACKEND=accounts.email_backends.SendGridAPIEmailBackend
+   SENDGRID_API_KEY=<sendgrid-api-key>
+   DEFAULT_FROM_EMAIL=<verified-sendgrid-sender>
+   EMAIL_TIMEOUT=10
    ```
 
 6. Deploy. `railway.json` will run:
