@@ -15,6 +15,7 @@ const ENDPOINTS = {
     login: `${API_BASE}/accounts/login/`,
     register: `${API_BASE}/accounts/register/`,
     verifyAccount: `${API_BASE}/accounts/verify-account/`,
+    resendVerification: `${API_BASE}/accounts/resend-verification/`,
     passwordResetRequest: `${API_BASE}/accounts/password-reset/request/`,
     passwordResetConfirm: `${API_BASE}/accounts/password-reset/confirm/`,
     profile: `${API_BASE}/accounts/profile/`,
@@ -166,6 +167,8 @@ let currentUser = null;
 let activeAuthMode = 'login';
 let selectedAvatarFile = null;
 let pendingVerificationUser = null;
+let verificationExpiryAt = null;
+let verificationTimerId = null;
 let pendingPasswordReset = null;
 const DEFAULT_LANGUAGE = "English (US)";
 const DEFAULT_REGION = "Philippines (GMT+8)";
@@ -431,7 +434,7 @@ async function handleAuthSubmit(event) {
         isOnline = true;
         if (activeAuthMode === 'signup') {
             pendingVerificationUser = { email: user.email || emailInput };
-            openVerifyAccountModal();
+            openVerifyAccountModal(null, user.expires_in_seconds || 300);
             const devCode = user.dev_verification_code ? ` Dev code: ${user.dev_verification_code}` : '';
             showSystemToast(`${user.message || 'Verification code sent. Please verify your account.'}${devCode}`);
             return;
@@ -1895,7 +1898,7 @@ function removeSecondaryEmail(index) {
     showSystemToast(`Removed secondary account: ${removed}`);
 }
 
-function openVerifyAccountModal(userData = null) {
+function openVerifyAccountModal(userData = null, expiresInSeconds = 300) {
     if (userData) pendingVerificationUser = userData;
     showAuthPanel('verificationPanel');
     const input = document.getElementById('verifyAccountCode');
@@ -1903,21 +1906,70 @@ function openVerifyAccountModal(userData = null) {
         input.value = '';
         input.focus();
     }
+    startVerificationTimer(userData?.expires_in_seconds || expiresInSeconds || 300);
 }
 
 function closeVerifyAccountModal() {
     showAuthPanel('authForm');
     const input = document.getElementById('verifyAccountCode');
     if (input) input.value = '';
+    stopVerificationTimer();
+}
+
+function startVerificationTimer(expiresInSeconds = 300) {
+    stopVerificationTimer();
+    verificationExpiryAt = Date.now() + Math.max(1, Number(expiresInSeconds || 300)) * 1000;
+    updateVerificationActionState();
+    verificationTimerId = setInterval(updateVerificationActionState, 1000);
+}
+
+function stopVerificationTimer() {
+    if (verificationTimerId) {
+        clearInterval(verificationTimerId);
+        verificationTimerId = null;
+    }
+}
+
+function isVerificationExpired() {
+    return verificationExpiryAt && Date.now() >= verificationExpiryAt;
+}
+
+function updateVerificationActionState() {
+    const button = document.getElementById('verifyAccountActionBtn');
+    const timerText = document.getElementById('verificationTimerText');
+    if (!button || !timerText) return;
+
+    const remaining = Math.max(0, Math.ceil(((verificationExpiryAt || Date.now()) - Date.now()) / 1000));
+    if (remaining <= 0) {
+        button.textContent = 'Resend Verification Link';
+        timerText.textContent = 'The verification code expired. Request a new one to continue.';
+        stopVerificationTimer();
+        return;
+    }
+
+    const minutes = Math.floor(remaining / 60);
+    const seconds = String(remaining % 60).padStart(2, '0');
+    button.textContent = 'Verify Account';
+    timerText.textContent = `Code expires in ${minutes}:${seconds}.`;
+}
+
+async function handleVerifyAccountAction() {
+    if (isVerificationExpired()) {
+        await resendAccountVerification();
+        return;
+    }
+    await submitAccountVerification();
 }
 
 async function submitAccountVerification() {
+    const actionButton = document.getElementById('verifyAccountActionBtn');
     const code = document.getElementById('verifyAccountCode')?.value.trim() || '';
     if (!pendingVerificationUser || !code) {
         showSystemToast('Please enter the verification code.');
         return;
     }
 
+    await withButtonLoading(actionButton, async () => {
     try {
         const response = await apiFetch(ENDPOINTS.verifyAccount, {
             method: 'POST',
@@ -1929,6 +1981,10 @@ async function submitAccountVerification() {
 
         if (!response.ok) {
             const body = await response.json().catch(() => ({}));
+            if ((body.detail || '').toLowerCase().includes('expired')) {
+                verificationExpiryAt = Date.now() - 1;
+                updateVerificationActionState();
+            }
             showSystemToast(`Verification failed: ${formatApiError(body)}`);
             return;
         }
@@ -1955,6 +2011,44 @@ async function submitAccountVerification() {
         console.error('Account verification error', err);
         showSystemToast('Unable to verify account. Check connection.');
     }
+    }, 'Verifying...');
+}
+
+async function resendAccountVerification() {
+    const actionButton = document.getElementById('verifyAccountActionBtn');
+    if (!pendingVerificationUser?.email) {
+        showSystemToast('Verification email is missing. Please register again.');
+        return;
+    }
+
+    await withButtonLoading(actionButton, async () => {
+    try {
+        const response = await apiFetch(ENDPOINTS.resendVerification, {
+            method: 'POST',
+            body: JSON.stringify({ email: pendingVerificationUser.email })
+        });
+        const body = await response.json().catch(() => ({}));
+        if (!response.ok) {
+            showSystemToast(`Resend failed: ${formatApiError(body)}`);
+            updateVerificationActionState();
+            return;
+        }
+
+        pendingVerificationUser.email = body.email || pendingVerificationUser.email;
+        const input = document.getElementById('verifyAccountCode');
+        if (input) {
+            input.value = '';
+            input.focus();
+        }
+        startVerificationTimer(body.expires_in_seconds || 300);
+        const devCode = body.dev_verification_code ? ` Dev code: ${body.dev_verification_code}` : '';
+        showSystemToast(`${body.message || 'A new verification code has been sent.'}${devCode}`);
+    } catch (err) {
+        console.error('Resend verification error', err);
+        showSystemToast('Unable to resend verification code. Check connection.');
+        updateVerificationActionState();
+    }
+    }, 'Sending...');
 }
 
 // Secure Change Email modal handlers

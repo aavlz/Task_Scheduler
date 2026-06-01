@@ -35,6 +35,20 @@ from .models import PendingRegistration, UserProfile
 VERIFICATION_EXPIRY_MINUTES = 5
 
 
+def make_verification_code():
+    return f"{random.randint(0, 999999):06d}"
+
+
+def send_verification_email(email, code, subject='V.A.S.T. Account Verification Code'):
+    message = (
+        f'Your V.A.S.T. verification code is: {code}\n\n'
+        f'This code expires in {VERIFICATION_EXPIRY_MINUTES} minutes. '
+        'If you did not request this, ignore this email.'
+    )
+    from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', None)
+    send_mail(subject, message, from_email, [email], fail_silently=False)
+
+
 def generate_username_id():
     alphabet = string.ascii_uppercase + string.ascii_lowercase + string.digits
     while True:
@@ -52,7 +66,7 @@ class RegisterView(APIView):
         serializer.is_valid(raise_exception=True)
 
         # Generate a 6-digit verification code and store on profile
-        code = f"{random.randint(0, 999999):06d}"
+        code = make_verification_code()
         email = serializer.validated_data['email']
         now = timezone.now()
         pending, _ = PendingRegistration.objects.update_or_create(
@@ -65,16 +79,8 @@ class RegisterView(APIView):
             },
         )
 
-        # Send verification email (SendGrid SMTP is expected to be configured in settings)
-        subject = 'V.A.S.T. Account Verification Code'
-        message = (
-            f'Your V.A.S.T. verification code is: {code}\n\n'
-            f'This code expires in {VERIFICATION_EXPIRY_MINUTES} minutes. '
-            'If you did not request this, ignore this email.'
-        )
-        from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', None)
         try:
-            send_mail(subject, message, from_email, [email], fail_silently=False)
+            send_verification_email(email, code)
         except Exception:
             if not settings.DEBUG:
                 return Response({'detail': 'Account created but failed to send verification email. Contact support.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -87,6 +93,59 @@ class RegisterView(APIView):
         if settings.DEBUG:
             payload['dev_verification_code'] = code
         return Response(payload, status=status.HTTP_201_CREATED)
+
+
+class ResendAccountVerificationView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        email = (request.data.get('email') or '').lower().strip()
+        if not email:
+            return Response({'email': 'Provide an email.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        now = timezone.now()
+        code = make_verification_code()
+
+        try:
+            pending = PendingRegistration.objects.get(email__iexact=email)
+        except PendingRegistration.DoesNotExist:
+            pending = None
+
+        if pending is not None:
+            pending.verification_code = code
+            pending.verification_sent_at = now
+            pending.expires_at = now + timezone.timedelta(minutes=VERIFICATION_EXPIRY_MINUTES)
+            pending.save(update_fields=['verification_code', 'verification_sent_at', 'expires_at'])
+            recipient = pending.email
+        else:
+            try:
+                user = User.objects.get(email__iexact=email)
+                profile = UserProfile.objects.get(user=user)
+            except (User.DoesNotExist, UserProfile.DoesNotExist):
+                return Response({'detail': 'No pending verification found for this email.'}, status=status.HTTP_404_NOT_FOUND)
+
+            if profile.is_verified:
+                return Response({'detail': 'Account is already verified.'}, status=status.HTTP_400_BAD_REQUEST)
+
+            profile.verification_code = code
+            profile.verification_sent_at = now
+            profile.save(update_fields=['verification_code', 'verification_sent_at'])
+            recipient = user.email
+
+        try:
+            send_verification_email(recipient, code)
+        except Exception:
+            if not settings.DEBUG:
+                return Response({'detail': 'Failed to send verification email. Please try again.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        payload = {
+            'email': recipient,
+            'expires_in_seconds': VERIFICATION_EXPIRY_MINUTES * 60,
+            'message': 'A new verification code has been sent.',
+        }
+        if settings.DEBUG:
+            payload['dev_verification_code'] = code
+        return Response(payload)
 
 class VerifyAccountView(APIView):
     permission_classes = [AllowAny]
@@ -347,7 +406,7 @@ class ChangeEmailView(APIView):
         # mark as unverified until user re-verifies
         profile, _ = UserProfile.objects.get_or_create(user=user)
         profile.is_verified = False
-        code = f"{random.randint(0, 999999):06d}"
+        code = make_verification_code()
         profile.verification_code = code
         profile.verification_sent_at = timezone.now()
         profile.save()
@@ -355,11 +414,8 @@ class ChangeEmailView(APIView):
         user.save()
 
         # send verification to new email
-        subject = 'V.A.S.T. Email Change Verification Code'
-        message = f'Your email change verification code is: {code}'
-        from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', None)
         try:
-            send_mail(subject, message, from_email, [new_email], fail_silently=False)
+            send_verification_email(new_email, code, subject='V.A.S.T. Email Change Verification Code')
         except Exception:
             if not settings.DEBUG:
                 return Response({'detail': 'Email updated but failed to send verification email.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -406,4 +462,3 @@ class HealthCheckView(APIView):
 
     def get(self, request):
         return Response({'status': 'ok'}, status=status.HTTP_200_OK)
-

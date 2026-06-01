@@ -1,6 +1,8 @@
 from django.core import mail
 from django.core.mail import EmailMessage
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
+from django.utils import timezone
 from rest_framework.test import APIClient
 from urllib.parse import parse_qs, urlparse
 from unittest.mock import patch
@@ -64,6 +66,33 @@ class AccountAPITests(TestCase):
         self.assertEqual(login_response.status_code, 200)
         self.assertTrue(login_response.data['is_verified'])
 
+    def test_expired_pending_registration_can_resend_and_verify_new_code(self):
+        response = self.client.post('/api/accounts/register/', {
+            'email': 'student@example.com',
+            'password': 'StrongPass1!',
+        }, format='json')
+        self.assertEqual(response.status_code, 201)
+
+        pending = PendingRegistration.objects.get(email='student@example.com')
+        old_code = pending.verification_code
+        pending.expires_at = timezone.now() - timezone.timedelta(seconds=1)
+        pending.save(update_fields=['expires_at'])
+
+        resend_response = self.client.post('/api/accounts/resend-verification/', {
+            'email': 'student@example.com',
+        }, format='json')
+
+        self.assertEqual(resend_response.status_code, 200)
+        pending.refresh_from_db()
+        self.assertNotEqual(pending.verification_code, old_code)
+        self.assertGreater(pending.expires_at, timezone.now())
+
+        verify_response = self.client.post('/api/accounts/verify-account/', {
+            'email': 'student@example.com',
+            'code': pending.verification_code,
+        }, format='json')
+        self.assertEqual(verify_response.status_code, 200)
+
     def test_notification_preferences_persist_from_profile_patch(self):
         self.client.post('/api/accounts/register/', {
             'email': 'student@example.com',
@@ -86,6 +115,33 @@ class AccountAPITests(TestCase):
         self.assertFalse(profile.evening_summary_enabled)
         self.assertFalse(response.data['morning_motivation_enabled'])
         self.assertFalse(response.data['evening_summary_enabled'])
+
+    def test_profile_avatar_upload_accepts_blank_color_and_persists_data_url(self):
+        self.client.post('/api/accounts/register/', {
+            'email': 'student@example.com',
+            'password': 'StrongPass1!',
+        }, format='json')
+        pending = PendingRegistration.objects.get(email='student@example.com')
+        self.client.post('/api/accounts/verify-account/', {
+            'email': 'student@example.com',
+            'code': pending.verification_code,
+        }, format='json')
+
+        avatar = SimpleUploadedFile(
+            'avatar.png',
+            b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR',
+            content_type='image/png',
+        )
+        response = self.client.patch('/api/accounts/profile/', {
+            'avatar_bg_color': '',
+            'avatar_image': avatar,
+        }, format='multipart')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['avatar_bg_color'], '#338A85')
+        self.assertTrue(response.data['avatar_image'].startswith('data:image/png;base64,'))
+        profile = UserProfile.objects.get(user__email='student@example.com')
+        self.assertTrue(profile.avatar_data_url.startswith('data:image/png;base64,'))
 
     @override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')
     def test_password_reset_email_link_sets_new_password(self):
@@ -177,3 +233,5 @@ class SendGridAPIEmailBackendTests(TestCase):
         self.assertEqual(payload['from']['email'], 'verified@example.com')
         self.assertEqual(payload['personalizations'][0]['to'][0]['email'], 'student@example.com')
         self.assertEqual(payload['content'][0]['value'], 'Your code is 123456')
+
+# Create your tests here.
