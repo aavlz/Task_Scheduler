@@ -81,6 +81,17 @@ class VoiceCommandTests(TestCase):
         self.assertEqual(task.priority, 'high')
         self.assertEqual(task.category.name, 'School')
 
+    def test_voice_command_removes_by_time_from_task_title(self):
+        response = self.client.post('/api/voice/command/', {
+            'transcript': 'Add grocery by 8 a.m.'
+        }, format='json')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.data['success'])
+        task = Task.objects.get(user=self.user)
+        self.assertEqual(task.title, 'Grocery')
+        self.assertEqual(task.time, time(8, 0))
+
     def test_voice_command_completes_task_from_filipino_phrase(self):
         Task.objects.create(
             user=self.user,

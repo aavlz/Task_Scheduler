@@ -7,6 +7,7 @@ from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.models import User
 from django.contrib.auth.tokens import default_token_generator
 from django.conf import settings
+from django.db import transaction
 from django.utils import timezone
 from django.utils.encoding import force_bytes, force_str
 from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
@@ -290,14 +291,16 @@ class ProfileView(APIView):
     def patch(self, request):
         profile, _ = UserProfile.objects.get_or_create(user=request.user)
 
-        # Update user fields if provided
+        new_username = None
+        new_email = None
+
+        # Validate user fields before saving anything.
         if 'username' in request.data:
             new_username = request.data['username'].strip()
             if len(new_username) < 3:
                 return Response({'username': 'Username must be at least 3 characters.'}, status=status.HTTP_400_BAD_REQUEST)
             if User.objects.filter(username__iexact=new_username).exclude(pk=request.user.pk).exists():
                 return Response({'username': 'This username is already in use.'}, status=status.HTTP_400_BAD_REQUEST)
-            request.user.username = new_username
         if 'email' in request.data:
             new_email = request.data['email'].lower().strip()
             # Check if email is already used by another user
@@ -306,16 +309,20 @@ class ProfileView(APIView):
                     {'email': 'This email is already in use.'},
                     status=status.HTTP_400_BAD_REQUEST
                 )
-            request.user.email = new_email
-        request.user.save()
-
-        # Refresh user from database to ensure changes are reflected in serializer
-        request.user.refresh_from_db()
 
         # Update profile fields, including file uploads
         serializer = UserProfileSerializer(profile, data=request.data, partial=True, context={'request': request})
         serializer.is_valid(raise_exception=True)
-        serializer.save()
+
+        with transaction.atomic():
+            if new_username is not None:
+                request.user.username = new_username
+            if new_email is not None:
+                request.user.email = new_email
+            if new_username is not None or new_email is not None:
+                request.user.save()
+                request.user.refresh_from_db()
+            serializer.save()
 
         return Response(serializer.data)
 
