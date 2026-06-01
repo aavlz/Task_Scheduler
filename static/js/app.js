@@ -6,9 +6,21 @@ const ENDPOINTS = {
     upcoming: `${API_BASE}/tasks/upcoming/`,
     tasks: `${API_BASE}/tasks/`,
     voice: `${API_BASE}/tasks/from-voice/`,
+    voiceCommand: `${API_BASE}/voice/command/`,
+    voiceAudio: `${API_BASE}/voice/audio/`,
+    aiSummary: `${API_BASE}/ai/summary/`,
+    aiMorning: `${API_BASE}/ai/morning/`,
+    aiEvening: `${API_BASE}/ai/evening/`,
+    tools: `${API_BASE}/tools/`,
     login: `${API_BASE}/accounts/login/`,
     register: `${API_BASE}/accounts/register/`,
-    profile: `${API_BASE}/accounts/profile/`
+    verifyAccount: `${API_BASE}/accounts/verify-account/`,
+    passwordResetRequest: `${API_BASE}/accounts/password-reset/request/`,
+    passwordResetConfirm: `${API_BASE}/accounts/password-reset/confirm/`,
+    profile: `${API_BASE}/accounts/profile/`,
+    changeEmail: `${API_BASE}/accounts/change-email/`,
+    deleteAccount: `${API_BASE}/accounts/delete-account/`,
+    logout: `${API_BASE}/accounts/logout/`
 };
 
 function getCSRFToken() {
@@ -74,17 +86,48 @@ async function apiFetchForm(url, formData, options = {}) {
     return fetch(url, fetchOptions);
 }
 
+function setButtonLoading(button, isLoading, label = 'Processing...') {
+    if (!button) return;
+    if (isLoading) {
+        button.dataset.originalText = button.textContent;
+        button.disabled = true;
+        button.classList.add('is-loading');
+        button.textContent = label;
+    } else {
+        button.disabled = false;
+        button.classList.remove('is-loading');
+        if (button.dataset.originalText) {
+            button.textContent = button.dataset.originalText;
+            delete button.dataset.originalText;
+        }
+    }
+}
+
+async function withButtonLoading(button, callback, label = 'Processing...') {
+    setButtonLoading(button, true, label);
+    try {
+        return await callback();
+    } finally {
+        setButtonLoading(button, false);
+    }
+}
+
 function syncCurrentUserFromBackend(profile) {
     if (!profile) return;
 
     currentUser = {
         ...currentUser,
-        name: profile.full_name || currentUser?.name || '',
+        name: profile.username || currentUser?.name || '',
+        username: profile.username || currentUser?.username || '',
         email: profile.email || currentUser?.email || '',
         avatarBg: profile.avatar_bg_color || currentUser?.avatarBg || '#338A85',
         avatarImg: profile.avatar_image || currentUser?.avatarImg || '',
-        language: profile.language || currentUser?.language || 'English(US)',
-        region: profile.region || currentUser?.region || 'Philippines (English)'
+        language: "English (US)",
+        region: "Philippines (GMT+8)",
+        is_verified: !!profile.is_verified,
+        morning_motivation_enabled: profile.morning_motivation_enabled !== false,
+        evening_summary_enabled: profile.evening_summary_enabled !== false,
+        device_notifications_enabled: !!profile.device_notifications_enabled
     };
 
     localStorage.setItem('vast_user', JSON.stringify(currentUser));
@@ -109,6 +152,10 @@ let isOnline = false;
 let currentUser = null;
 let activeAuthMode = 'login';
 let selectedAvatarFile = null;
+let pendingVerificationUser = null;
+let pendingPasswordReset = null;
+const DEFAULT_LANGUAGE = "English (US)";
+const DEFAULT_REGION = "Philippines (GMT+8)";
 
 // Dynamic Filter State
 let currentFilter = 'all';
@@ -125,8 +172,8 @@ let localNotifications = [];
 let extraEmails = [];
 
 // Dynamic presets settings
-let selectedLang = "English(US)";
-let selectedRegion = "Philippines (English)";
+let selectedLang = DEFAULT_LANGUAGE;
+let selectedRegion = DEFAULT_REGION;
 let activeAvatarBg = "#E2E8F0";
 let activeAvatarImage = "";
 
@@ -134,29 +181,37 @@ let activeAvatarImage = "";
 let taskToDeleteId = null;
 let renderedTaskCache = {};
 let calendarTasksCache = [];
+let notificationWatcherStarted = false;
 
 const languagesData = [
     { name: "English(US)", sub: "" },
-    { name: "Af-Soomaali", sub: "Somali" },
-    { name: "Afrikaans", sub: "Afrikaans" },
-    { name: "Bahasa Indonesia", sub: "Indonesian" },
-    { name: "Deutsch", sub: "German" },
-    { name: "Español", sub: "Spanish" },
-    { name: "Français", sub: "French" }
+    { name: "Tagalog (fil-PH)", sub: "" },
+    { name: "Español", sub: "" },
+    { name: "Français", sub: "" },
+    { name: "日本語", sub: "" }
 ];
 
 const regionsData = [
-    { name: "Philippines (English)", sub: "3/14/26, 18:07" },
-    { name: "Albania (Albanian)", sub: "3/14/26, 6:09 PM" },
-    { name: "Algeria (Arabic)", sub: "3/14/26, 5:08" },
-    { name: "Algeria (French)", sub: "3/14/26, 5:08" },
-    { name: "United States (English)", sub: "3/14/26, 5:08 AM" },
-    { name: "Japan (Japanese)", sub: "3/14/26, 19:08" }
+    { name: "en-US", sub: "United States" },
+    { name: "fil-PH", sub: "Philippines" },
+    { name: "en-GB", sub: "United Kingdom" },
+    { name: "ja-JP", sub: "Japan" },
+    { name: "es-ES", sub: "Spain" }
 ];
 
+function getTaskCategoryName(task) {
+    return (task.category_name || task.category_label || 'Others').toString();
+}
+
+function getTaskCategoryClass(task) {
+    const normalized = getTaskCategoryName(task).trim().toLowerCase();
+    if (['school', 'work', 'personal'].includes(normalized)) {
+        return `category-${normalized}`;
+    }
+    return 'category-others';
+}
+
 // Cache elements
-const networkBanner = document.getElementById('networkBanner');
-const networkText = document.getElementById('networkText');
 const mainHeader = document.getElementById('mainHeader');
 const authPageWrapper = document.getElementById('auth-page-wrapper');
 const appContentWrapper = document.getElementById('app-content-wrapper');
@@ -183,15 +238,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     initializeDatabase();
     await checkBackendHandshake();
     await checkUserSession();
+    handlePasswordResetLinkFromUrl();
     
     // Set default date input value to today
     document.getElementById('taskDate').value = getTodayDateString();
     document.getElementById('taskTime').value = "09:00";
+    document.getElementById('taskCategory').value = "Others";
     
     initVoiceRecognition();
+    initAIActions();
     initDeleteConfirmationListener();
     initCalendarControls();
     startTodayWatcher();
+    startNotificationWatcher();
 });
 
 // Watch the system date and update `todayDate` when the day changes.
@@ -278,20 +337,18 @@ async function checkUserSession() {
 // Toggle Auth layout switch between sign-in and registration models
 function toggleAuthMode() {
     clearAuthError();
-    const nameFieldsGroup = document.getElementById('nameFieldsGroup');
+    updatePasswordRequirements();
     const authSubmitBtn = document.getElementById('authSubmitBtn');
     const authToggleText = document.getElementById('authToggleText');
     const toggleAuthModeLink = document.getElementById('toggleAuthMode');
     
     if (activeAuthMode === 'login') {
         activeAuthMode = 'signup';
-        nameFieldsGroup.style.display = 'block';
         authSubmitBtn.textContent = 'Register Account';
         authToggleText.textContent = 'Already have an account?';
         toggleAuthModeLink.textContent = 'Log In Here';
     } else {
         activeAuthMode = 'login';
-        nameFieldsGroup.style.display = 'none';
         authSubmitBtn.textContent = 'Confirm Log In';
         authToggleText.textContent = "Don't have an account yet?";
         toggleAuthModeLink.textContent = 'Create an Account';
@@ -302,46 +359,45 @@ function toggleAuthMode() {
 async function handleAuthSubmit(event) {
     event.preventDefault();
     clearAuthError();
+    const submitBtn = document.getElementById('authSubmitBtn');
 
-    const usernameInput = document.getElementById('authUsername').value.trim();
+    const emailInput = document.getElementById('authUsername').value.trim();
     const passwordInput = document.getElementById('authPassword').value;
-    const fallbackName = usernameInput.charAt(0).toUpperCase() + usernameInput.slice(1);
-    
-    // Get first and last name for signup, or use fallback for display
-    const firstNameInput = document.getElementById('authFirstName').value.trim();
-    const lastNameInput = document.getElementById('authLastName').value.trim();
-    const displayName = activeAuthMode === 'signup' 
-        ? `${firstNameInput} ${lastNameInput}`.trim() 
-        : fallbackName;
+    const fallbackName = emailInput.split('@')[0] || 'User';
 
-    if (!usernameInput) {
-        setAuthError('Please enter your username or email.');
+    if (!emailInput) {
+        setAuthError('Please enter your email.');
         return;
     }
     if (!passwordInput) {
         setAuthError('Please enter your password.');
         return;
     }
-    if (activeAuthMode === 'signup' && !firstNameInput) {
-        setAuthError('Please enter your first name for registration.');
+    if (activeAuthMode === 'signup' && !isStrongPassword(passwordInput)) {
+        setAuthError('Please complete all password requirements.');
         return;
     }
 
+    await withButtonLoading(submitBtn, async () => {
     try {
         const response = await apiFetch(activeAuthMode === 'signup' ? ENDPOINTS.register : ENDPOINTS.login, {
             method: 'POST',
             body: JSON.stringify({
-                username: usernameInput,
+                username: emailInput,
                 password: passwordInput,
-                first_name: activeAuthMode === 'signup' ? firstNameInput : '',
-                last_name: activeAuthMode === 'signup' ? lastNameInput : '',
-                email: usernameInput.includes('@') ? usernameInput : ''
+                email: emailInput
             })
         });
 
         if (!response.ok) {
             const errorBody = await response.json().catch(() => ({}));
             const errorMessage = formatApiError(errorBody) || 'Authentication failed. Please check your details.';
+            if (errorBody.requires_verification) {
+                pendingVerificationUser = {
+                    email: errorBody.email || emailInput
+                };
+                openVerifyAccountModal();
+            }
             setAuthError(errorMessage);
             showSystemToast(errorMessage);
             return;
@@ -350,20 +406,35 @@ async function handleAuthSubmit(event) {
         const user = await response.json();
         currentUser = {
             username: user.username,
-            name: user.name || displayName || fallbackName,
-            email: user.email || (usernameInput.includes('@') ? usernameInput : ''),
+            name: user.username || fallbackName,
+            email: user.email || emailInput,
             avatarBg: "#338A85",
-            avatarImg: ""
+            avatarImg: "",
+            is_verified: !!user.is_verified,
+            morning_motivation_enabled: true,
+            evening_summary_enabled: true,
+            device_notifications_enabled: false
         };
         isOnline = true;
+        if (activeAuthMode === 'signup') {
+            pendingVerificationUser = { email: user.email || emailInput };
+            openVerifyAccountModal();
+            const devCode = user.dev_verification_code ? ` Dev code: ${user.dev_verification_code}` : '';
+            showSystemToast(`${user.message || 'Verification code sent. Please verify your account.'}${devCode}`);
+            return;
+        }
     } catch (err) {
         console.error("Backend auth unavailable, using local session fallback:", err);
         currentUser = {
-            username: usernameInput,
-            name: activeAuthMode === 'signup' ? fullNameInput : fallbackName,
-            email: usernameInput.includes('@') ? usernameInput : '',
+            username: fallbackName,
+            name: fallbackName,
+            email: emailInput,
             avatarBg: "#338A85",
-            avatarImg: ""
+            avatarImg: "",
+            is_verified: true,
+            morning_motivation_enabled: true,
+            evening_summary_enabled: true,
+            device_notifications_enabled: false
         };
     }
 
@@ -377,6 +448,7 @@ async function handleAuthSubmit(event) {
     }
 
     applySessionLogin(currentUser.username);
+    }, activeAuthMode === 'signup' ? 'Registering...' : 'Logging in...');
 }
 
 function applySessionLogin(username) {
@@ -428,7 +500,14 @@ function updateProfileUI() {
     });
 }
 
-function handleLogout() {
+async function handleLogout() {
+    if (isOnline) {
+        try {
+            await apiFetch(ENDPOINTS.logout, { method: 'POST' });
+        } catch (err) {
+            console.warn('Backend logout failed; clearing local session only.', err);
+        }
+    }
     localStorage.removeItem('vast_user');
     currentUser = null;
     applySessionLogout();
@@ -445,6 +524,168 @@ function clearAuthError() {
     if (authError) {
         authError.textContent = '';
     }
+}
+
+function togglePasswordVisibility(inputId, button) {
+    const input = document.getElementById(inputId);
+    if (!input) return;
+    const show = input.type === 'password';
+    input.type = show ? 'text' : 'password';
+    if (button) {
+        button.textContent = show ? '⌧' : '👁';
+        button.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+    }
+}
+
+function getPasswordRules(password) {
+    return {
+        length: password.length >= 8,
+        upper: /[A-Z]/.test(password),
+        lower: /[a-z]/.test(password),
+        number: /\d/.test(password),
+        special: /[^A-Za-z0-9]/.test(password)
+    };
+}
+
+function isStrongPassword(password) {
+    return Object.values(getPasswordRules(password)).every(Boolean);
+}
+
+function updatePasswordRequirements() {
+    const checklist = document.getElementById('passwordChecklist');
+    const password = document.getElementById('authPassword')?.value || '';
+    if (!checklist) return;
+    checklist.style.display = activeAuthMode === 'signup' ? 'grid' : 'none';
+    const rules = getPasswordRules(password);
+    checklist.querySelectorAll('li').forEach(item => {
+        item.classList.toggle('valid', !!rules[item.dataset.rule]);
+    });
+}
+
+function updateResetPasswordRequirements() {
+    const checklist = document.getElementById('resetPasswordChecklist');
+    const password = document.getElementById('resetNewPassword')?.value || '';
+    if (!checklist) return;
+    const rules = getPasswordRules(password);
+    checklist.querySelectorAll('li').forEach(item => {
+        item.classList.toggle('valid', !!rules[item.dataset.rule]);
+    });
+}
+
+function showAuthPanel(panelId) {
+    ['authForm', 'verificationPanel', 'passwordResetRequestPanel', 'passwordResetConfirmPanel'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.style.display = id === panelId ? 'block' : 'none';
+    });
+    const toggle = document.querySelector('.auth-toggle');
+    if (toggle) toggle.style.display = panelId === 'authForm' ? 'block' : 'none';
+}
+
+function openPasswordResetRequest() {
+    clearAuthError();
+    const email = document.getElementById('authUsername')?.value.trim() || '';
+    const resetEmail = document.getElementById('resetRequestEmail');
+    if (appContentWrapper && appContentWrapper.style.display !== 'none') {
+        appContentWrapper.style.display = 'none';
+        authPageWrapper.style.display = 'flex';
+    }
+    if (resetEmail) resetEmail.value = email || currentUser?.email || '';
+    showAuthPanel('passwordResetRequestPanel');
+}
+
+function closePasswordResetPanels() {
+    pendingPasswordReset = null;
+    showAuthPanel('authForm');
+}
+
+async function submitPasswordResetRequest() {
+    const actionButton = typeof event !== 'undefined' ? event.target : null;
+    const email = document.getElementById('resetRequestEmail')?.value.trim() || '';
+    if (!email) {
+        showSystemToast('Please enter your email.');
+        return;
+    }
+
+    await withButtonLoading(actionButton, async () => {
+    try {
+        const response = await apiFetch(ENDPOINTS.passwordResetRequest, {
+            method: 'POST',
+            body: JSON.stringify({ email })
+        });
+        const body = await response.json().catch(() => ({}));
+        if (!response.ok) {
+            showSystemToast(`Password reset failed: ${formatApiError(body)}`);
+            return;
+        }
+        if (body.dev_reset_url) {
+            console.info('Development password reset URL:', body.dev_reset_url);
+        }
+        showSystemToast(body.detail || 'If an account exists, a reset link has been sent.');
+        closePasswordResetPanels();
+    } catch (err) {
+        console.error('Password reset request failed', err);
+        showSystemToast('Unable to send password reset email. Check connection.');
+    }
+    }, 'Sending...');
+}
+
+function handlePasswordResetLinkFromUrl() {
+    const params = new URLSearchParams(window.location.search);
+    const uid = params.get('reset_uid');
+    const token = params.get('reset_token');
+    if (!uid || !token) return;
+    pendingPasswordReset = { uid, token };
+    localStorage.removeItem('vast_user');
+    currentUser = null;
+    applySessionLogout();
+    showAuthPanel('passwordResetConfirmPanel');
+    const cleanUrl = `${window.location.origin}${window.location.pathname}`;
+    window.history.replaceState({}, document.title, cleanUrl);
+}
+
+async function submitPasswordResetConfirm() {
+    const actionButton = typeof event !== 'undefined' ? event.target : null;
+    if (!pendingPasswordReset) {
+        showSystemToast('Password reset link is missing or invalid.');
+        return;
+    }
+    const newPassword = document.getElementById('resetNewPassword')?.value || '';
+    const confirmPassword = document.getElementById('resetConfirmPassword')?.value || '';
+    if (!isStrongPassword(newPassword)) {
+        showSystemToast('Please complete all password requirements.');
+        return;
+    }
+    if (newPassword !== confirmPassword) {
+        showSystemToast('Passwords do not match.');
+        return;
+    }
+
+    await withButtonLoading(actionButton, async () => {
+    try {
+        const response = await apiFetch(ENDPOINTS.passwordResetConfirm, {
+            method: 'POST',
+            body: JSON.stringify({
+                uid: pendingPasswordReset.uid,
+                token: pendingPasswordReset.token,
+                new_password: newPassword
+            })
+        });
+        const body = await response.json().catch(() => ({}));
+        if (!response.ok) {
+            showSystemToast(`Password reset failed: ${formatApiError(body)}`);
+            return;
+        }
+        pendingPasswordReset = null;
+        document.getElementById('resetNewPassword').value = '';
+        document.getElementById('resetConfirmPassword').value = '';
+        updateResetPasswordRequirements();
+        showAuthPanel('authForm');
+        showSystemToast(body.detail || 'Password has been reset successfully.');
+    } catch (err) {
+        console.error('Password reset confirm failed', err);
+        showSystemToast('Unable to reset password. Check connection.');
+    }
+    }, 'Updating...');
 }
 
 function applySessionLogout() {
@@ -483,17 +724,9 @@ async function checkBackendHandshake() {
         const response = await apiFetch(ENDPOINTS.summary, { signal: controller.signal });
         clearTimeout(timeoutId);
         
-        if (response.ok) {
-            isOnline = true;
-            networkBanner.classList.remove('offline');
-            networkText.textContent = "Live Connected to V.A.S.T. Django Cloud Backend DB";
-        } else {
-            throw new Error("API responded with an error status.");
-        }
+        isOnline = !!(response && response.ok);
     } catch (err) {
         isOnline = false;
-        networkBanner.classList.add('offline');
-        networkText.textContent = "Offline Mode Active (Using Premium Local Handshake Store)";
     }
 }
 
@@ -688,7 +921,7 @@ function renderTaskList(tasks, targetContainerId, isToday, forceShowDate = false
     tasks.forEach(task => {
         renderedTaskCache[task.id] = task;
         const taskItem = document.createElement('div');
-        taskItem.className = `task-item ${task.status === 'completed' ? 'is-completed' : ''}`;
+        taskItem.className = `task-item ${getTaskCategoryClass(task)} ${task.status === 'completed' ? 'is-completed' : ''}`;
         
         const timeString = formatTime(task.time);
         const showFullDate = forceShowDate || !isToday;
@@ -702,12 +935,34 @@ function renderTaskList(tasks, targetContainerId, isToday, forceShowDate = false
             <div class="task-right">
                 <span class="task-time">${displayMetadata}</span>
                 <div class="priority-dot ${task.priority}" title="${task.priority} priority"></div>
+                <button class="reminder-task-btn" title="Reminder settings" onclick="openReminderModal(event, ${task.id})">&#128276;</button>
                 <button class="edit-task-btn" title="Edit task" onclick="openEditTaskModal(event, ${task.id})">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
                 </button>
                 <button class="delete-task-btn" title="Delete task" onclick="deleteTask(${task.id})">&times;</button>
             </div>
         `;
+
+        // Overdue badge: client-side check comparing combined date+time to now
+        try {
+            const now = new Date();
+            let taskDateTime = null;
+            if (task.time) {
+                taskDateTime = new Date(`${task.date}T${task.time}`);
+            } else if (task.date) {
+                taskDateTime = new Date(`${task.date}T00:00:00`);
+            }
+            if (taskDateTime && task.status !== 'completed' && taskDateTime < now) {
+                const rightCol = taskItem.querySelector('.task-right');
+                const badge = document.createElement('span');
+                badge.className = 'overdue-badge';
+                badge.textContent = 'Overdue';
+                rightCol.insertBefore(badge, rightCol.firstChild);
+            }
+        } catch (e) {
+            // ignore client-side parse errors
+        }
+
         container.appendChild(taskItem);
     });
 }
@@ -723,8 +978,12 @@ async function toggleTaskStatus(taskId, currentStatus) {
         });
         if (response.ok) {
             isOnline = true;
+            const task = renderedTaskCache[taskId] || {};
             fetchDashboardData();
             showSystemToast(nextStatus === 'completed' ? "Task marked complete." : "Task marked pending.");
+            if (nextStatus === 'completed') {
+                addSystemNotification("Congratulations!", `You've completed ${task.title || 'a task'}.`, formatNotificationTime(new Date()), "complete");
+            }
             return;
         }
         const errorBody = await response.json().catch(() => ({}));
@@ -762,6 +1021,68 @@ function deleteTask(taskId) {
 function closeDeleteConfirmModal() {
     document.getElementById('deleteConfirmModal').classList.remove('active');
     taskToDeleteId = null;
+}
+
+function openReminderModal(event, taskId) {
+    if (event) event.stopPropagation();
+    const task = renderedTaskCache[taskId] || calendarTasksCache.find(t => t.id === taskId) || localTasks.find(t => t.id === taskId);
+    const minutes = Number(task?.reminder_minutes_before ?? 10);
+    const preset = document.getElementById('reminderPreset');
+    document.getElementById('reminderTaskId').value = taskId;
+    const presetValues = ['0', '5', '10', '30', '60', '1440', '10080'];
+    preset.value = presetValues.includes(String(minutes)) ? String(minutes) : 'custom';
+    document.getElementById('customReminderMinutes').value = minutes;
+    document.getElementById('customReminderGroup').style.display = preset.value === 'custom' ? 'flex' : 'none';
+    document.getElementById('reminderModal').classList.add('active');
+}
+
+function closeReminderModal() {
+    document.getElementById('reminderModal').classList.remove('active');
+}
+
+document.addEventListener('change', (event) => {
+    if (event.target && event.target.id === 'reminderPreset') {
+        document.getElementById('customReminderGroup').style.display = event.target.value === 'custom' ? 'flex' : 'none';
+    }
+});
+
+async function saveTaskReminder() {
+    const taskId = parseInt(document.getElementById('reminderTaskId').value, 10);
+    const preset = document.getElementById('reminderPreset').value;
+    const minutes = preset === 'custom'
+        ? parseInt(document.getElementById('customReminderMinutes').value || '10', 10)
+        : parseInt(preset, 10);
+
+    if (!Number.isFinite(minutes) || minutes < 0 || minutes > 43200) {
+        showSystemToast('Choose a reminder from 0 minutes to 30 days before.');
+        return;
+    }
+
+    try {
+        const response = await apiFetch(`${ENDPOINTS.tasks}${taskId}/`, {
+            method: 'PATCH',
+            body: JSON.stringify({ reminder_minutes_before: minutes })
+        });
+        if (response.ok) {
+            const task = await response.json();
+            renderedTaskCache[task.id] = task;
+            closeReminderModal();
+            fetchDashboardData();
+            showSystemToast(`Reminder set ${formatReminderOffset(minutes)}.`);
+            return;
+        }
+        const body = await response.json().catch(() => ({}));
+        showSystemToast(`Reminder update failed: ${formatApiError(body)}`);
+    } catch (err) {
+        const taskIndex = localTasks.findIndex(t => t.id === taskId);
+        if (taskIndex !== -1) {
+            localTasks[taskIndex].reminder_minutes_before = minutes;
+            saveLocalDatabase();
+            closeReminderModal();
+            fetchDashboardData();
+            showSystemToast(`Reminder set ${formatReminderOffset(minutes)}.`);
+        }
+    }
 }
 
 function initDeleteConfirmationListener() {
@@ -832,6 +1153,7 @@ async function openEditTaskModal(event, taskId) {
     document.getElementById('editTaskDate').value = task.date;
     document.getElementById('editTaskTime').value = normalizeTimeForInput(task.time);
     document.getElementById('editTaskPriority').value = task.priority;
+    document.getElementById('editTaskCategory').value = task.category_name || 'Others';
     document.getElementById('editTaskStatus').value = task.status || 'pending';
 
     document.getElementById('editTaskModal').classList.add('active');
@@ -843,11 +1165,13 @@ function closeEditTaskModal() {
 
 async function handleEditTaskSubmit(event) {
     event.preventDefault();
+    const submitButton = event.submitter;
     const taskId = parseInt(document.getElementById('editTaskId').value, 10);
     const title = document.getElementById('editTaskTitle').value.trim();
     const date = document.getElementById('editTaskDate').value;
     const time = document.getElementById('editTaskTime').value;
     const priority = document.getElementById('editTaskPriority').value;
+    const category = document.getElementById('editTaskCategory').value;
     const status = document.getElementById('editTaskStatus').value;
 
     const payload = {
@@ -855,9 +1179,11 @@ async function handleEditTaskSubmit(event) {
         date,
         time,
         priority,
+        category_label: category,
         status
     };
 
+    await withButtonLoading(submitButton, async () => {
     try {
         const response = await apiFetch(`${ENDPOINTS.tasks}${taskId}/`, {
             method: 'PATCH',
@@ -893,24 +1219,30 @@ async function handleEditTaskSubmit(event) {
             inspectCalendarSelectedDayTasks();
         }
     }
+    }, 'Saving...');
 }
 
 // --- MANUAL SUBMIT ENGINE ---
 async function handleAddTaskSubmit(event) {
     event.preventDefault();
+    const submitButton = event.submitter;
     const title = document.getElementById('taskTitle').value.trim();
     const date = document.getElementById('taskDate').value;
     const time = document.getElementById('taskTime').value;
     const priority = document.getElementById('taskPriority').value;
+    const category = document.getElementById('taskCategory').value;
 
     const payload = {
         title,
         date,
         time,
         priority,
+        category_label: category,
+        reminder_minutes_before: 10,
         status: "pending"
     };
 
+    await withButtonLoading(submitButton, async () => {
     try {
         const response = await apiFetch(ENDPOINTS.tasks, {
             method: 'POST',
@@ -935,6 +1267,7 @@ async function handleAddTaskSubmit(event) {
     localTasks.push(newTask);
     saveLocalDatabase();
     finishTaskCreation();
+    }, 'Saving...');
 }
 
 function finishTaskCreation() {
@@ -1094,7 +1427,7 @@ function inspectCalendarSelectedDayTasks() {
     dayTasks.forEach(task => {
         renderedTaskCache[task.id] = task;
         const taskCard = document.createElement('div');
-        taskCard.className = `task-item ${task.status === 'completed' ? 'is-completed' : ''}`;
+        taskCard.className = `task-item ${getTaskCategoryClass(task)} ${task.status === 'completed' ? 'is-completed' : ''}`;
         
         taskCard.innerHTML = `
             <div class="task-left">
@@ -1104,6 +1437,7 @@ function inspectCalendarSelectedDayTasks() {
             <div class="task-right">
                 <span class="task-time">${formatTime(task.time)}</span>
                 <div class="priority-dot ${task.priority}"></div>
+                <button class="reminder-task-btn" title="Reminder settings" onclick="openReminderModal(event, ${task.id})">&#128276;</button>
                 <button class="edit-task-btn" title="Edit task" onclick="openEditTaskModal(event, ${task.id})">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
                 </button>
@@ -1118,27 +1452,28 @@ function inspectCalendarSelectedDayTasks() {
 function populateSettingsInputs() {
     if (!currentUser) return;
 
-    // Split dynamic Full Name into First and Last Names automatically
-    const nameParts = currentUser.name.trim().split(/\s+/);
-    const firstName = nameParts[0] || '';
-    const lastName = nameParts.slice(1).join(' ') || '';
-
-    document.getElementById('settingsFirstName').value = firstName;
-    document.getElementById('settingsLastName').value = lastName;
-
     // Pre-populate sidebar branding
-    document.getElementById('settingsSidebarName').innerHTML = `${currentUser.name} <span style="font-size: 11px; cursor: pointer; color: var(--accent-teal);">✎</span>`;
+    const sidebarNameEl = document.getElementById('settingsSidebarName');
+    if (sidebarNameEl) sidebarNameEl.textContent = currentUser.username || currentUser.name;
 
-    // Populate email from currentUser or use placeholder
-    const emailValue = currentUser.email || currentUser.username;
-    document.getElementById('settingsEmail').value = emailValue;
+    // Populate username and email inputs
+    const usernameEl = document.getElementById('settingsUsername');
+    if (usernameEl) usernameEl.value = currentUser.username || '';
+    const emailValue = currentUser.email || currentUser.username || '';
+    const emailReadEl = document.getElementById('settingsEmailReadOnly');
+    if (emailReadEl) emailReadEl.value = emailValue;
+    const emailEl = document.getElementById('settingsEmail');
+    if (emailEl) emailEl.value = emailValue;
+
+    const deviceToggle = document.getElementById('deviceNotificationsToggle');
+    if (deviceToggle) deviceToggle.checked = !!currentUser.device_notifications_enabled;
 
     // Render Extra Connected Emails dynamically if present
     renderExtraEmails();
 
     // Set active settings language/region badges
-    document.getElementById('settingsActiveLangDesc').textContent = selectedLang;
-    document.getElementById('settingsActiveRegionDesc').textContent = selectedRegion;
+    document.getElementById('settingsActiveLangDesc').textContent = DEFAULT_LANGUAGE;
+    document.getElementById('settingsActiveRegionDesc').textContent = DEFAULT_REGION;
 
     // Update photo previews
     const box = document.getElementById('settingsPicBox');
@@ -1161,35 +1496,29 @@ function switchSettingsTab(tabName) {
     document.getElementById(`settings-pane-${tabName}`).classList.add('active');
     
     // Match click selectors
-    const targetNavIndex = tabName === 'profile' ? 0 : tabName === 'password' ? 1 : 2;
+    const targetNavIndex = tabName === 'profile' ? 0 : tabName === 'password' ? 1 : tabName === 'language' ? 2 : 3;
     document.querySelectorAll('.settings-nav-item')[targetNavIndex].classList.add('active');
 }
 
 async function savePersonalDetails() {
-    const first = document.getElementById('settingsFirstName').value.trim();
-    const last = document.getElementById('settingsLastName').value.trim();
+    const username = document.getElementById('settingsUsername').value.trim();
 
-    if (!first) {
-        showSystemToast("Name context requires at least a First Name.");
+    if (username.length < 3) {
+        showSystemToast("Username must be at least 3 characters.");
         return;
     }
-
-    const updatedName = `${first} ${last}`.trim();
 
     if (isOnline) {
         try {
             const response = await apiFetch(ENDPOINTS.profile, {
                 method: 'PATCH',
-                body: JSON.stringify({
-                    first_name: first,
-                    last_name: last
-                })
+                body: JSON.stringify({ username })
             });
 
             if (response.ok) {
                 const profile = await response.json();
                 syncCurrentUserFromBackend(profile);
-                showSystemToast("Personal profile details updated successfully!");
+                showSystemToast("Username updated successfully.");
                 triggerVocalResponse("Profile saved successfully.");
                 return;
             }
@@ -1203,12 +1532,22 @@ async function savePersonalDetails() {
         }
     }
 
-    currentUser.name = updatedName;
+    currentUser.username = username;
+    currentUser.name = username;
     localStorage.setItem('vast_user', JSON.stringify(currentUser));
     updateProfileUI();
     populateSettingsInputs();
-    showSystemToast("Personal profile details updated successfully!");
+    showSystemToast("Username updated locally.");
     triggerVocalResponse("Profile saved successfully.");
+}
+
+function focusUsernameEdit() {
+    switchSettingsTab('profile');
+    const input = document.getElementById('settingsUsername');
+    if (input) {
+        input.focus();
+        input.select();
+    }
 }
 
 async function saveNewPassword() {
@@ -1223,6 +1562,11 @@ async function saveNewPassword() {
 
     if (newPass !== confirmPass) {
         showSystemToast("Passwords mismatch! Retype confirmation.");
+        return;
+    }
+
+    if (!isStrongPassword(newPass)) {
+        showSystemToast("New password must meet the strong password requirements.");
         return;
     }
 
@@ -1257,6 +1601,46 @@ async function saveNewPassword() {
     }
 }
 
+// --- NOTIFICATION SETTINGS HANDLERS ---
+function saveNotificationSettings() {
+    const enabled = document.getElementById('deviceNotificationsToggle')?.checked || false;
+
+    if (enabled && 'Notification' in window && Notification.permission === 'default') {
+        Notification.requestPermission().then(permission => {
+            if (permission !== 'granted') {
+                document.getElementById('deviceNotificationsToggle').checked = false;
+                showSystemToast('Device notifications were not allowed by the browser.');
+                return;
+            }
+            saveNotificationSettings();
+        });
+        return;
+    }
+
+    if (isOnline) {
+        apiFetch(ENDPOINTS.profile, {
+            method: 'PATCH',
+            body: JSON.stringify({ device_notifications_enabled: enabled })
+        }).then(async (resp) => {
+            if (resp.ok) {
+                const profile = await resp.json();
+                syncCurrentUserFromBackend(profile);
+                showSystemToast('Notification settings saved.');
+            } else {
+                const body = await resp.json().catch(() => ({}));
+                showSystemToast(`Unable to save: ${formatApiError(body)}`);
+            }
+        }).catch(err => {
+            console.error('Save notification settings failed', err);
+            showSystemToast('Unable to save notification settings.');
+        });
+    } else {
+        showSystemToast('You are offline. Notification preferences will be saved when online.');
+        // store in local user object
+        currentUser.device_notifications_enabled = enabled;
+        localStorage.setItem('vast_user', JSON.stringify(currentUser));
+    }
+}
 async function saveEmailChanges() {
     const newEmail = document.getElementById('settingsEmail').value.trim();
 
@@ -1453,26 +1837,142 @@ function removeSecondaryEmail(index) {
     showSystemToast(`Removed secondary account: ${removed}`);
 }
 
-async function deleteEmailAccount() {
-    if (!confirm("Are you sure you want to delete your VAST account permanently? All tasks and settings will be lost.")) {
+function openVerifyAccountModal(userData = null) {
+    if (userData) pendingVerificationUser = userData;
+    showAuthPanel('verificationPanel');
+    const input = document.getElementById('verifyAccountCode');
+    if (input) {
+        input.value = '';
+        input.focus();
+    }
+}
+
+function closeVerifyAccountModal() {
+    showAuthPanel('authForm');
+    const input = document.getElementById('verifyAccountCode');
+    if (input) input.value = '';
+}
+
+async function submitAccountVerification() {
+    const code = document.getElementById('verifyAccountCode')?.value.trim() || '';
+    if (!pendingVerificationUser || !code) {
+        showSystemToast('Please enter the verification code.');
         return;
     }
 
     try {
-        const response = await apiFetch(ENDPOINTS.profile, { method: 'DELETE' });
-        if (response.ok) {
-            localStorage.clear();
-            currentUser = null;
-            applySessionLogout();
-            showSystemToast("Account deleted. Re-routing back to registration.");
+        const response = await apiFetch(ENDPOINTS.verifyAccount, {
+            method: 'POST',
+            body: JSON.stringify({
+                email: pendingVerificationUser.email,
+                code
+            })
+        });
+
+        if (!response.ok) {
+            const body = await response.json().catch(() => ({}));
+            showSystemToast(`Verification failed: ${formatApiError(body)}`);
             return;
         }
 
-        const errorBody = await response.json().catch(() => ({}));
-        showSystemToast(`Account deletion failed: ${formatApiError(errorBody)}`);
+        closeVerifyAccountModal();
+        showSystemToast('Account verified successfully.');
+        const verified = await response.json().catch(() => ({}));
+        currentUser = {
+            username: verified.username,
+            name: verified.username,
+            email: verified.email || pendingVerificationUser.email,
+            avatarBg: "#338A85",
+            avatarImg: "",
+            is_verified: true,
+            morning_motivation_enabled: true,
+            evening_summary_enabled: true,
+            language: DEFAULT_LANGUAGE,
+            region: DEFAULT_REGION
+        };
+        localStorage.setItem('vast_user', JSON.stringify(currentUser));
+        await fetchUserProfile();
+        applySessionLogin(currentUser.username);
     } catch (err) {
-        console.error("Account deletion failed:", err);
-        showSystemToast("Unable to delete account. Please try again.");
+        console.error('Account verification error', err);
+        showSystemToast('Unable to verify account. Check connection.');
+    }
+}
+
+// Secure Change Email modal handlers
+function openChangeEmailModal() {
+    document.getElementById('changeEmailModal').classList.add('active');
+}
+function closeChangeEmailModal() {
+    document.getElementById('changeEmailModal').classList.remove('active');
+    document.getElementById('changeEmailNew').value = '';
+    document.getElementById('changeEmailPassword').value = '';
+}
+
+async function submitChangeEmail() {
+    const newEmail = document.getElementById('changeEmailNew').value.trim();
+    const password = document.getElementById('changeEmailPassword').value;
+    if (!newEmail || !password) { showSystemToast('Please provide new email and password.'); return; }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(newEmail)) { showSystemToast('Invalid email format.'); return; }
+
+    try {
+        const response = await apiFetch(ENDPOINTS.changeEmail, {
+            method: 'POST',
+            body: JSON.stringify({ new_email: newEmail, password })
+        });
+        if (response.ok) {
+            const payload = await response.json().catch(() => ({}));
+            closeChangeEmailModal();
+            pendingVerificationUser = {
+                username: currentUser?.username || '',
+                email: newEmail
+            };
+            openVerifyAccountModal();
+            const devCode = payload.dev_verification_code ? ` Dev code: ${payload.dev_verification_code}` : '';
+            showSystemToast(`Email change requested. Please verify the new email via verification code.${devCode}`);
+            fetchUserProfile();
+            return;
+        }
+        const body = await response.json().catch(() => ({}));
+        showSystemToast(`Change email failed: ${formatApiError(body)}`);
+    } catch (err) {
+        console.error('Change email error', err);
+        showSystemToast('Unable to change email. Check connection.');
+    }
+}
+
+// Secure Delete Account modal handlers
+function openDeleteAccountModal() {
+    document.getElementById('deleteAccountModal').classList.add('active');
+}
+function closeDeleteAccountModal() {
+    document.getElementById('deleteAccountModal').classList.remove('active');
+    const p = document.getElementById('deleteAccountPassword'); if (p) p.value = '';
+}
+
+async function submitDeleteAccount() {
+    const password = document.getElementById('deleteAccountPassword').value;
+    if (!password) { showSystemToast('Please enter your password to confirm deletion.'); return; }
+
+    try {
+        const response = await apiFetch(ENDPOINTS.deleteAccount, {
+            method: 'POST',
+            body: JSON.stringify({ password })
+        });
+        if (response.ok) {
+            closeDeleteAccountModal();
+            localStorage.clear();
+            currentUser = null;
+            applySessionLogout();
+            showSystemToast('Your account has been permanently deleted.');
+            return;
+        }
+        const body = await response.json().catch(() => ({}));
+        showSystemToast(`Account deletion failed: ${formatApiError(body)}`);
+    } catch (err) {
+        console.error('Account deletion error', err);
+        showSystemToast('Unable to delete account. Please try again later.');
     }
 }
 
@@ -1633,16 +2133,90 @@ function clearNotifications() {
     showSystemToast("All notifications cleared.");
 }
 
+function formatNotificationTime(date) {
+    return date.toLocaleString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit'
+    });
+}
+
+function formatReminderOffset(minutes) {
+    if (minutes === 0) return 'at task time';
+    if (minutes < 60) return `${minutes} minute${minutes === 1 ? '' : 's'} before`;
+    if (minutes < 1440) {
+        const hours = Math.round(minutes / 60);
+        return `${hours} hour${hours === 1 ? '' : 's'} before`;
+    }
+    const days = Math.round(minutes / 1440);
+    return `${days} day${days === 1 ? '' : 's'} before`;
+}
+
+function notifyDevice(title, body) {
+    if (!currentUser?.device_notifications_enabled || !('Notification' in window) || Notification.permission !== 'granted') {
+        return;
+    }
+    try {
+        new Notification(title, { body });
+    } catch (err) {
+        console.warn('Device notification failed', err);
+    }
+}
+
 function addSystemNotification(title, desc, time = "Just now", type = "upcoming") {
+    const fingerprint = `${title}|${desc}`;
+    const recentlyExists = localNotifications.some(notif => notif.fingerprint === fingerprint);
+    if (recentlyExists) return;
     localNotifications.unshift({
         id: Date.now(),
         title,
         desc,
         time,
-        type
+        type,
+        fingerprint
     });
     saveLocalDatabase();
     renderNotifications();
+    notifyDevice(title, desc);
+}
+
+function startNotificationWatcher() {
+    if (notificationWatcherStarted) return;
+    notificationWatcherStarted = true;
+    setInterval(checkTaskNotifications, 30000);
+    checkTaskNotifications();
+}
+
+function checkTaskNotifications() {
+    const source = isOnline ? calendarTasksCache : localTasks;
+    if (!Array.isArray(source) || source.length === 0) return;
+    const now = new Date();
+
+    source.forEach(task => {
+        if (!task || task.status === 'completed' || !task.date || !task.time) return;
+        const due = new Date(`${task.date}T${normalizeTimeForInput(task.time)}:00`);
+        if (Number.isNaN(due.getTime())) return;
+
+        const reminderMinutes = Number(task.reminder_minutes_before ?? 10);
+        const remindAt = new Date(due.getTime() - reminderMinutes * 60000);
+        if (now >= remindAt && now <= due) {
+            addSystemNotification(
+                'Task reminder',
+                `${task.title} is due ${formatReminderOffset(reminderMinutes)}.`,
+                formatNotificationTime(now),
+                'upcoming'
+            );
+        }
+        if (now > due) {
+            addSystemNotification(
+                'Overdue task',
+                `${task.title} is overdue.`,
+                formatNotificationTime(now),
+                'late'
+            );
+        }
+    });
 }
 
 // --- NAVIGATION PANEL ROUTER ---
@@ -1676,27 +2250,87 @@ async function navigateTo(panelName) {
 // --- INTERACTIVE WEB SPEECH & INTELLIGENT PARSER ---
 function initVoiceRecognition() {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    
+
     if (!SpeechRecognition) {
-        console.warn("Natively hosted Speech Recognition engines absent. Loading Simulated Voice Interface.");
-        micBtn.addEventListener('click', () => {
-            simulateVocalPrompt();
+        // Fallback to audio recording + server-side STT
+        console.warn("Natively hosted Speech Recognition engines absent. Using MediaRecorder fallback.");
+
+        let mediaRecorder = null;
+        let audioChunks = [];
+
+        micBtn.addEventListener('click', async () => {
+            // Toggle recording
+            if (micBtn.classList.contains('listening')) {
+                // stop
+                if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                    mediaRecorder.stop();
+                }
+            } else {
+                // start
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    audioChunks = [];
+                    mediaRecorder = new MediaRecorder(stream);
+                    mediaRecorder.ondataavailable = (e) => audioChunks.push(e.data);
+                    mediaRecorder.onstart = () => {
+                        micBtn.classList.add('listening');
+                        voiceToast.style.display = 'block';
+                        voiceToast.textContent = "Speak now, I'm listening.";
+                        playListeningChime();
+                    };
+                    mediaRecorder.onstop = async () => {
+                        micBtn.classList.remove('listening');
+                        voiceToast.style.display = 'none';
+                        const blob = new Blob(audioChunks, { type: 'audio/webm' });
+                        const form = new FormData();
+                        form.append('audio', blob, 'voice.webm');
+                        try {
+                            const res = await apiFetchForm(ENDPOINTS.voiceAudio, form);
+                            if (!res.ok) {
+                                const body = await res.json().catch(() => ({}));
+                                showSystemToast('Audio transcription failed: ' + formatApiError(body));
+                                return;
+                            }
+                            const result = await res.json();
+                            await handleVoiceCommandResult(result);
+                        } catch (err) {
+                            console.error('Audio upload failed', err);
+                            showSystemToast('Audio upload failed. Ensure backend is running.');
+                        }
+                        // stop all tracks
+                        stream.getTracks().forEach(t => t.stop());
+                    };
+                    mediaRecorder.start();
+                } catch (err) {
+                    console.error('MediaRecorder init failed', err);
+                    showSystemToast('Microphone recording unavailable.');
+                }
+            }
         });
         return;
     }
 
     const recognition = new SpeechRecognition();
     recognition.continuous = true;
-    recognition.lang = 'en-US';
+    recognition.lang = (currentUser && currentUser.region && currentUser.region.includes('Japan')) ? 'ja-JP' : 'en-US';
     recognition.interimResults = true;
 
     let finalTranscript = '';
     let shouldKeepListening = false;
     let submitTimer = null;
     let isRecognitionRunning = false;
+    let lastUpdateTime = Date.now();
 
-    function queueVoiceSubmit(delay = 2200) {
+    function computeAdaptiveDelay() {
+        // Base minimum to avoid premature submit, scale with word count
+        const words = finalTranscript.split(/\s+/).filter(Boolean).length;
+        const computed = Math.min(7000, 700 + words * 250);
+        return computed;
+    }
+
+    function queueVoiceSubmit(delay = null) {
         clearTimeout(submitTimer);
+        const useDelay = delay || computeAdaptiveDelay();
         submitTimer = setTimeout(() => {
             shouldKeepListening = false;
             processCapturedSpeech(finalTranscript.trim());
@@ -1707,7 +2341,7 @@ function initVoiceRecognition() {
                     console.warn("Speech recognition stop error:", e);
                 }
             }
-        }, delay);
+        }, useDelay);
     }
 
     micBtn.addEventListener('click', () => {
@@ -1739,7 +2373,8 @@ function initVoiceRecognition() {
         isRecognitionRunning = true;
         micBtn.classList.add('listening');
         voiceToast.style.display = "block";
-        triggerVocalResponse("Speak now, I'm listening.");
+        voiceToast.textContent = "Speak now, I'm listening.";
+        playListeningChime();
     };
 
     recognition.onend = () => {
@@ -1766,13 +2401,22 @@ function initVoiceRecognition() {
     };
 
     recognition.onresult = (event) => {
+        let updated = false;
         for (let i = event.resultIndex; i < event.results.length; i++) {
             const transcriptPart = event.results[i][0].transcript.trim();
             if (event.results[i].isFinal && transcriptPart) {
                 finalTranscript = `${finalTranscript} ${transcriptPart}`.trim();
+                updated = true;
+            } else if (!event.results[i].isFinal && transcriptPart) {
+                // refresh last update time to delay submit while user keeps speaking
+                lastUpdateTime = Date.now();
             }
         }
-        queueVoiceSubmit();
+        if (updated) queueVoiceSubmit();
+        else {
+            // if interim results keep coming, extend the timeout slightly
+            queueVoiceSubmit(1200);
+        }
     };
 }
 
@@ -1783,12 +2427,16 @@ async function processCapturedSpeech(phrase) {
     showSystemToast(`Heard: "${phrase}"`);
 
     try {
-        const response = await apiFetch(ENDPOINTS.voice, {
+        const response = await apiFetch(ENDPOINTS.voiceCommand, {
             method: 'POST',
             body: JSON.stringify({ transcript: phrase })
         });
 
         if (!response.ok) {
+            // Attempt robust client-side parsing fallback before giving up
+            const handledLocally = await tryLocalVoiceFallback(phrase);
+            if (handledLocally) return;
+
             const errorBody = await response.json().catch(() => ({}));
             const errorText = formatApiError(errorBody);
             const authMessage = (response.status === 401 || response.status === 403)
@@ -1798,15 +2446,270 @@ async function processCapturedSpeech(phrase) {
             return;
         }
 
-        const task = await response.json();
-        renderedTaskCache[task.id] = task;
-        showSystemToast(`Successfully parsed Voice Task: "${task.title}"`);
-        triggerVocalResponse(`Task added: ${task.title}`);
-        navigateTo('dashboard');
+        const result = await response.json();
+        await handleVoiceCommandResult(result);
     } catch (err) {
         console.error("Voice task backend request failed:", err);
+        // Try local fallback parsing and insertion
+        const handledLocally = await tryLocalVoiceFallback(phrase);
+        if (handledLocally) return;
         showSystemToast("Voice task failed. Check if Django is running.");
     }
+}
+
+// CLIENT-SIDE REGEXP PARSING FALLBACK FOR VOICE COMMANDS
+async function tryLocalVoiceFallback(phrase) {
+    try {
+        const payload = localParseVoice(phrase);
+        if (!payload) return false;
+
+        // Try to create via backend (best-effort)
+        try {
+            const resp = await apiFetch(ENDPOINTS.tasks, { method: 'POST', body: JSON.stringify(payload) });
+            if (resp.ok) {
+                const created = await resp.json();
+                showSystemToast('Voice parsed locally and task created.');
+                renderedTaskCache[created.id] = created;
+                fetchDashboardData();
+                return true;
+            }
+        } catch (err) {
+            console.warn('Backend create failed, falling back to offline insertion:', err);
+        }
+
+        // Offline insertion fallback
+        const newTask = { id: Date.now(), ...payload };
+        localTasks.push(newTask);
+        saveLocalDatabase();
+        showSystemToast('Voice parsed locally and task saved offline.');
+        fetchDashboardData();
+        return true;
+    } catch (err) {
+        console.error('Local voice fallback failed:', err);
+        return false;
+    }
+}
+
+function localParseVoice(phrase) {
+    if (!phrase) return null;
+    const p = phrase.trim();
+    // Normalize common words
+    const lower = p.toLowerCase();
+
+    // Only attempt to parse commands that start with add/create or similar
+    if (!/^(add|create|new)\b/i.test(p)) return null;
+
+    // Extract priority
+    let priority = 'medium';
+    const prMatch = lower.match(/priority\s+(high|medium|low)/i);
+    if (prMatch) priority = prMatch[1];
+
+    let category = 'Others';
+    const categoryMatch = lower.match(/\b(?:category|in|under)\s+(school|work|personal|others|other)\b/i);
+    if (categoryMatch) {
+        category = categoryMatch[1].charAt(0).toUpperCase() + categoryMatch[1].slice(1).toLowerCase();
+        if (category === 'Other') category = 'Others';
+    }
+
+    // Extract date
+    let date = null;
+    if (/\btomorrow\b/i.test(lower)) {
+        const d = new Date(); d.setDate(d.getDate() + 1);
+        date = d.toISOString().slice(0,10);
+    } else if (/\btoday\b/i.test(lower)) {
+        const d = new Date(); date = d.toISOString().slice(0,10);
+    } else {
+        // ISO date detection
+        const iso = p.match(/(\d{4}-\d{2}-\d{2})/);
+        if (iso) date = iso[1];
+        else {
+            // Try natural month day like 'May 18' or 'June 3'
+            const md = p.match(/on\s+([A-Za-z]+\s+\d{1,2})/i) || p.match(/([A-Za-z]+\s+\d{1,2})/i);
+            if (md) {
+                const parsed = Date.parse(md[1] + ' ' + new Date().getFullYear());
+                if (!isNaN(parsed)) date = new Date(parsed).toISOString().slice(0,10);
+            }
+        }
+    }
+
+    // Extract time
+    let time = null;
+    const timeMatch = p.match(/(\d{1,2}:\d{2}\s*(am|pm)?)/i) || p.match(/(\d{1,2}\s*(am|pm))/i);
+    if (timeMatch) {
+        let t = timeMatch[1].trim();
+        // Normalize to HH:MM 24h
+        let dt = Date.parse('01/01/1970 ' + t);
+        if (!isNaN(dt)) {
+            const d = new Date(dt);
+            const hh = String(d.getHours()).padStart(2,'0');
+            const mm = String(d.getMinutes()).padStart(2,'0');
+            time = `${hh}:${mm}`;
+        }
+    }
+
+    // Extract title: everything after 'add' until the first date/time/priority keyword
+    const titleMatch = p.match(/^(?:add|create|new)\s+(.+?)(?:\s+on\s+|\s+at\s+|\s+tomorrow\b|\s+today\b|\s+priority\b|$)/i);
+    const title = titleMatch ? titleMatch[1].trim() : null;
+    if (!title) return null;
+
+    return {
+        title: title.charAt(0).toUpperCase() + title.slice(1),
+        date: date || getTodayDateString(),
+        time: time || '',
+        priority: priority,
+        category_label: category,
+        status: 'pending'
+    };
+}
+
+async function handleVoiceCommandResult(result) {
+    const message = result.message || 'Voice command processed.';
+    showSystemToast(message);
+    triggerVocalResponse(message);
+
+    if (result.task) {
+        renderedTaskCache[result.task.id] = result.task;
+    }
+
+    if (Array.isArray(result.tasks)) {
+        calendarTasksCache = result.tasks;
+        result.tasks.forEach(task => {
+            renderedTaskCache[task.id] = task;
+        });
+        currentFilter = 'voice';
+        if (document.getElementById('todayHeaderLabel')) document.getElementById('todayHeaderLabel').textContent = 'Voice Results';
+        if (document.getElementById('upcomingHeaderLabel')) document.getElementById('upcomingHeaderLabel').textContent = '';
+        const tasksLayout = document.querySelector('.tasks-layout');
+        const columns = tasksLayout ? tasksLayout.querySelectorAll(':scope > div') : [];
+        if (tasksLayout) tasksLayout.classList.add('filtered-mode');
+        if (columns[1]) columns[1].style.display = 'none';
+        renderTaskList(result.tasks, 'today-tasks-list', false, true);
+        if (document.getElementById('upcoming-tasks-list')) document.getElementById('upcoming-tasks-list').innerHTML = '';
+        navigateTo('dashboard');
+        return;
+    }
+
+    if (result.action === 'navigate') {
+        const target = result.target === 'profile' ? 'settings' : result.target;
+        navigateTo(target || 'dashboard');
+        return;
+    }
+
+    if (result.action === 'logout') {
+        currentUser = null;
+        localStorage.removeItem('vast_user');
+        appContentWrapper.style.display = 'none';
+        authPageWrapper.style.display = 'flex';
+        return;
+    }
+
+    if ((result.action === 'task_summary' || result.action === 'how_to') && result.result) {
+        renderAIResult(result.result);
+    }
+
+    if (currentFilter === 'voice') {
+        currentFilter = 'all';
+    }
+    await fetchDashboardData();
+    navigateTo('dashboard');
+}
+
+async function initAIActions() {
+    const summaryBtn = document.getElementById('aiSummaryBtn');
+    const howToBtn = document.getElementById('howToBtn');
+    const collapseBtn = document.getElementById('aiCollapseBtn');
+    if (summaryBtn) {
+        summaryBtn.addEventListener('click', fetchAISummary);
+    }
+    if (howToBtn) {
+        howToBtn.addEventListener('click', renderHowToGuide);
+    }
+    if (collapseBtn) {
+        collapseBtn.addEventListener('click', () => {
+            const section = collapseBtn.closest('.ai-section');
+            const collapsed = section.classList.toggle('collapsed');
+            collapseBtn.textContent = collapsed ? 'Expand' : 'Collapse';
+        });
+    }
+}
+
+async function fetchAISummary() {
+    try {
+        const response = await apiFetch(ENDPOINTS.aiSummary, { method: 'POST' });
+        if (!response.ok) {
+            showSystemToast('AI summary failed. Please sign in and try again.');
+            return;
+        }
+        renderAIResult(await response.json());
+    } catch (err) {
+        console.error('AI summary request failed:', err);
+        showSystemToast('AI summary failed. Check the backend server.');
+    }
+}
+
+async function executeTool(slug) {
+    try {
+        const response = await apiFetch(`${ENDPOINTS.tools}${slug}/execute/`, {
+            method: 'POST',
+            body: JSON.stringify({})
+        });
+        if (!response.ok) {
+            showSystemToast('AI tool execution failed.');
+            return;
+        }
+        const payload = await response.json();
+        renderAIResult(payload.result || payload);
+    } catch (err) {
+        console.error('AI tool execution failed:', err);
+        showSystemToast('AI tool execution failed. Check the backend server.');
+    }
+}
+
+function renderHowToGuide() {
+    renderAIResult({
+        summary: 'Use short, complete voice commands with an action, task name, date, time, priority, and category.',
+        recommendations: [
+            'Say: "Add math quiz tomorrow at 3 PM priority high category School."',
+            'Update tasks with: "Move math quiz to Friday at 10 AM" or "Change math quiz priority high."',
+            'Delete or finish tasks with: "Delete math quiz" or "Complete math quiz."',
+            'Use categories: School, Work, Personal, or Others.',
+            'Filipino cues are supported: "dagdag", "gumawa", "bukas", "ngayon", "tapusin", "burahin", and "hanapin".'
+        ]
+    });
+}
+
+function renderAIResult(result) {
+    const panel = document.getElementById('aiResultPanel');
+    if (!panel) {
+        showSystemToast(result.summary || result.insight || 'AI result is ready.');
+        return;
+    }
+
+    const summary = result.summary || result.insight || 'AI analysis complete.';
+    const recommendations = result.recommendations || [];
+    const recommendationHTML = recommendations.length
+        ? `<ul>${recommendations.map(item => `<li>${escapeHTML(String(item))}</li>`).join('')}</ul>`
+        : '';
+
+    let metricHTML = '';
+    if (typeof result.pending_count !== 'undefined') {
+        metricHTML = `
+            <div class="ai-metrics">
+                <span>${result.pending_count} pending</span>
+                <span>${result.completed_count} completed</span>
+                <span>${result.overdue_count} overdue</span>
+            </div>
+        `;
+    }
+
+    panel.innerHTML = `
+        <strong>AI Insight</strong>
+        <p>${escapeHTML(summary)}</p>
+        ${metricHTML}
+        ${recommendationHTML}
+    `;
+    panel.style.display = 'block';
+    triggerVocalResponse(summary);
 }
 
 // Voice simulator fallback for non-Chrome platforms
@@ -1831,6 +2734,27 @@ function triggerVocalResponse(phrase) {
         utterance.pitch = 1.0;
         utterance.rate = 1.0;
         window.speechSynthesis.speak(utterance);
+    }
+}
+
+function playListeningChime() {
+    try {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContext) return;
+        const context = new AudioContext();
+        const oscillator = context.createOscillator();
+        const gain = context.createGain();
+        oscillator.type = 'sine';
+        oscillator.frequency.setValueAtTime(880, context.currentTime);
+        gain.gain.setValueAtTime(0.001, context.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.08, context.currentTime + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.001, context.currentTime + 0.18);
+        oscillator.connect(gain);
+        gain.connect(context.destination);
+        oscillator.start();
+        oscillator.stop(context.currentTime + 0.2);
+    } catch (err) {
+        console.warn('Listening chime unavailable', err);
     }
 }
 
